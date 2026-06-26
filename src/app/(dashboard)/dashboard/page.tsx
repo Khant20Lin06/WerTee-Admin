@@ -1,287 +1,390 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import {
-  TrendingUp, TrendingDown, ShoppingBag, Bike, AlertCircle,
-  ArrowRight, CircleDot,
+  TrendingUp, ShoppingBag, Bike, Clock,
+  ArrowRight, Star, Users, CheckCircle, AlertTriangle, Package,
 } from 'lucide-react';
 import Link from 'next/link';
 import { apiGet } from '@/lib/api/client';
 import { ep } from '@/lib/api/endpoints';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Spinner } from '@/components/ui/spinner';
+import { KpiCard } from '@/components/ui/kpi-card';
+import { PageHeader } from '@/components/ui/page-header';
+import type { OrderSummary, Rider, Merchant, RatingsStats } from '@/types/models';
+import { fmtMMK, timeAgo } from '@/lib/utils/formatters';
 
-type OrderSummary = {
-  orderId: string;
-  orderCode: string;
-  status: string;
-  totalAmount: string;
-  placedAt: string;
-  customer: { phone: string; fullName: string | null };
-  branch: { branchName: string; merchantName: string };
-};
+const DONE_STATUSES  = ['COMPLETED', 'DELIVERED'];
+const ACTIVE_STATUSES = ['PLACED', 'CONFIRMED', 'PREPARING', 'READY', 'DELIVERING'];
 
-type RiderSummary = {
-  riderId: string;
-  status: string;        // RiderStatus: ACTIVE | PENDING | SUSPENDED
-  isOnline: boolean;
-  isAvailable: boolean;
-};
-
-// ─── Sparkline ───────────────────────────────────────────────────────────────
-
-function Sparkline({ values, color }: { values: number[]; color: string }) {
-  const max = Math.max(...values, 1);
-  return (
-    <div className="flex items-end gap-0.5" style={{ height: 24 }}>
-      {values.map((v, i) => (
-        <div key={i} className="rounded-sm flex-1"
-          style={{ height: `${Math.max(3, (v / max) * 24)}px`, background: i === values.length - 1 ? color : '#EEF0FF', minWidth: 4 }} />
-      ))}
-    </div>
-  );
-}
-
-// ─── KPI Tile ─────────────────────────────────────────────────────────────────
-
-type KpiTileProps = {
-  label: string; icon: React.ElementType; value: string;
-  change: string; changeType: 'up' | 'down' | 'warn'; sparkValues: number[];
-};
-
-function KpiTile({ label, icon: Icon, value, change, changeType, sparkValues }: KpiTileProps) {
-  const changeColor = changeType === 'up' ? '#16A660' : changeType === 'down' ? '#D84040' : '#D4820A';
-  const ChangeIcon = changeType === 'up' ? TrendingUp : changeType === 'down' ? TrendingDown : AlertCircle;
-  return (
-    <div className="rounded-card p-4 flex flex-col gap-3" style={{ background: '#F6F5FF', border: '1px solid #E8E6F8' }}>
-      <div className="flex items-center gap-1 uppercase tracking-wider font-semibold" style={{ fontSize: 9, color: '#8A88A8' }}>
-        <Icon size={11} />{label}
-      </div>
-      <div className="font-extrabold" style={{ fontSize: 21, color: '#1A1730', lineHeight: 1 }}>{value}</div>
-      <div className="flex items-center gap-1">
-        <ChangeIcon size={10} style={{ color: changeColor }} />
-        <span style={{ fontSize: 10, color: changeColor }}>{change}</span>
-      </div>
-      <Sparkline values={sparkValues} color="#5B4FE9" />
-    </div>
-  );
-}
-
-// ─── Revenue bar chart (real data — last N days from orders) ──────────────────
-
-type RevDay = { label: string; value: number };
-
-function RevenueChart({ days, loading }: { days: RevDay[]; loading: boolean }) {
-  if (loading) return <div className="flex justify-center items-center" style={{ height: 100 }}><span style={{ fontSize: 11, color: '#C0BDE8' }}>Loading…</span></div>;
-  if (days.length === 0) return <div className="flex justify-center items-center" style={{ height: 100 }}><span style={{ fontSize: 11, color: '#C0BDE8' }}>No revenue data</span></div>;
-  const max = Math.max(...days.map(d => d.value), 1);
-  return (
-    <div className="flex items-end gap-1" style={{ height: 100 }}>
-      {days.map((d, i) => (
-        <div key={i} className="flex flex-col items-center flex-1 gap-1">
-          <span style={{ fontSize: 8, color: '#8A88A8' }}>
-            {d.value >= 1_000_000 ? `${(d.value/1_000_000).toFixed(1)}M` : d.value >= 1_000 ? `${Math.round(d.value/1_000)}K` : d.value > 0 ? d.value : ''}
-          </span>
-          <div className="w-full rounded-sm"
-            style={{ height: `${Math.max(4, (d.value / max) * 76)}px`, background: i === days.length - 1 ? '#5B4FE9' : '#EEF0FF', minWidth: 4 }} />
-          <span style={{ fontSize: 8, color: '#8A88A8' }}>{d.label}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// ─── Platform health (visual only) ────────────────────────────────────────────
-
-const HEALTH = [
-  { label: 'Order success rate', value: 97, color: '#16A660' },
-  { label: 'Avg delivery (min)',  value: 81, color: '#5B4FE9' },
-  { label: 'Rider utilisation',  value: 81, color: '#D4820A' },
-];
-
-// ─── Page ─────────────────────────────────────────────────────────────────────
-
-// Build last-N-days revenue buckets from order list
-function buildRevenueDays(orders: OrderSummary[], nDays: number): RevDay[] {
+function buildRevDays(orders: OrderSummary[], nDays: number) {
   const map = new Map<string, number>();
-  // Seed all days with 0
   for (let i = nDays - 1; i >= 0; i--) {
     const d = new Date();
     d.setDate(d.getDate() - i);
     map.set(d.toISOString().slice(0, 10), 0);
   }
   orders
-    .filter(o => o.status === 'COMPLETED' && o.placedAt)
+    .filter(o => DONE_STATUSES.includes(o.status))
     .forEach(o => {
-      const day = o.placedAt.slice(0, 10);
-      if (map.has(day)) map.set(day, (map.get(day) ?? 0) + Number(o.totalAmount));
+      const day = o.placedAt?.slice(0, 10);
+      if (day && map.has(day)) map.set(day, (map.get(day) ?? 0) + Number(o.totalAmount));
     });
-  return [...map.entries()].map(([date, value]) => {
-    const d = new Date(date);
-    const label = d.toLocaleDateString('en-GB', { weekday: 'narrow' });
-    return { label, value };
-  });
+  return [...map.entries()].map(([date, value]) => ({
+    label: new Date(date).toLocaleDateString('en-GB', { weekday: 'narrow' }),
+    date,
+    value,
+  }));
+}
+
+function RevenueChart({ days, loading }: { days: { label: string; value: number }[]; loading: boolean }) {
+  const max   = Math.max(...days.map(d => d.value), 1);
+  const total = days.reduce((s, d) => s + d.value, 0);
+
+  if (loading) return (
+    <div className="flex items-end gap-1.5" style={{ height: 88 }}>
+      {[60, 40, 70, 55, 80, 65, 90].map((h, i) => (
+        <div key={i} className="flex-1 rounded-lg"
+          style={{ height: `${h}%`, background: '#F0EFFB', animation: 'pulse 1.5s ease infinite' }} />
+      ))}
+    </div>
+  );
+
+  if (total === 0) return (
+    <div className="flex items-center justify-center" style={{ height: 88 }}>
+      <span style={{ fontSize: 11, color: '#C4C2DC' }}>No revenue data for this period</span>
+    </div>
+  );
+
+  return (
+    <div className="flex items-end gap-1.5" style={{ height: 88 }}>
+      {days.map((d, i) => {
+        const isLast = i === days.length - 1;
+        const h = Math.max(6, (d.value / max) * 80);
+        return (
+          <div key={i} className="flex flex-col items-center gap-1 flex-1"
+            title={`${d.label}: ${fmtMMK(d.value)}`}>
+            {d.value > 0 && (
+              <span style={{ fontSize: 7, color: '#8A88A8' }}>
+                {d.value >= 1000 ? `${Math.round(d.value / 1000)}K` : d.value}
+              </span>
+            )}
+            <div className="w-full rounded-lg flex-1 flex items-end">
+              <div className="w-full rounded-lg"
+                style={{ height: `${h}px`, background: isLast ? '#5B4FE9' : '#EEF0FF', transition: 'height 0.4s ease' }} />
+            </div>
+            <span style={{ fontSize: 8, color: isLast ? '#5B4FE9' : '#8A88A8', fontWeight: isLast ? 700 : 400 }}>
+              {d.label}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 export default function DashboardPage() {
-  const [orders, setOrders]       = useState<OrderSummary[]>([]);
-  const [riders, setRiders]       = useState<RiderSummary[]>([]);
-  const [loading, setLoading]     = useState(true);
+  const [orders,    setOrders]    = useState<OrderSummary[]>([]);
+  const [riders,    setRiders]    = useState<Rider[]>([]);
+  const [merchants, setMerchants] = useState<Merchant[]>([]);
+  const [ratings,   setRatings]   = useState<RatingsStats | null>(null);
+  const [loading,   setLoading]   = useState(true);
+  const [refreshAt, setRefreshAt] = useState(Date.now());
   const [revPeriod, setRevPeriod] = useState<7 | 30>(7);
 
-  useEffect(() => {
-    Promise.allSettled([
+  const load = useCallback(async () => {
+    setLoading(true);
+    const [ordRes, riderRes, merchRes, ratRes] = await Promise.allSettled([
       apiGet<OrderSummary[]>(ep.orders),
-      apiGet<RiderSummary[]>(ep.riders),
-    ]).then(([ordRes, riderRes]) => {
-      if (ordRes.status === 'fulfilled')   setOrders(Array.isArray(ordRes.value) ? ordRes.value : []);
-      if (riderRes.status === 'fulfilled') setRiders(Array.isArray(riderRes.value) ? riderRes.value : []);
-    }).finally(() => setLoading(false));
+      apiGet<Rider[]>(ep.riders),
+      apiGet<Merchant[]>(ep.merchants),
+      apiGet<RatingsStats>(ep.ratingsStats),
+    ]);
+    if (ordRes.status   === 'fulfilled') setOrders(Array.isArray(ordRes.value)    ? ordRes.value    : []);
+    if (riderRes.status === 'fulfilled') setRiders(Array.isArray(riderRes.value)  ? riderRes.value  : []);
+    if (merchRes.status === 'fulfilled') setMerchants(Array.isArray(merchRes.value) ? merchRes.value : []);
+    if (ratRes.status   === 'fulfilled' && ratRes.value?.totalCount !== undefined) setRatings(ratRes.value);
+    setLoading(false);
+    setRefreshAt(Date.now());
   }, []);
 
-  // Derived stats
-  const totalOrders  = orders.length;
-  const pendingCount = orders.filter(o => ['CONFIRMED', 'PREPARING', 'READY', 'DELIVERING'].includes(o.status)).length;
-  const activeRiders = riders.filter(r => r.isOnline).length;
+  useEffect(() => { void load(); }, [load]);
 
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const gmvRaw   = orders
-    .filter(o => o.status === 'COMPLETED' && o.placedAt?.startsWith(todayStr))
-    .reduce((sum, o) => sum + Number(o.totalAmount), 0);
-  const gmvToday = gmvRaw >= 1_000_000
-    ? `${(gmvRaw / 1_000_000).toFixed(2)}M`
-    : gmvRaw >= 1_000
-    ? `${Math.round(gmvRaw / 1_000)}K`
-    : String(gmvRaw);
-
-  const revenueDays = buildRevenueDays(orders, revPeriod);
-
-  const notifs = [
-    { id: 1, title: 'New order surge detected', sub: 'Zone 1 — high activity', unread: true },
-    { id: 2, title: 'Refund request pending',   sub: 'Check refunds queue',   unread: true },
-    { id: 3, title: 'Rider offline',            sub: 'Zone B coverage low',   unread: false },
-    { id: 4, title: 'New merchant registered',  sub: 'Pending review',        unread: false },
-  ];
+  const todayStr    = useMemo(() => new Date().toISOString().slice(0, 10), [refreshAt]);
+  const todayOrders = useMemo(() => orders.filter(o => o.placedAt?.startsWith(todayStr)), [orders, todayStr]);
+  const gmvToday    = useMemo(() => todayOrders.filter(o => DONE_STATUSES.includes(o.status)).reduce((s, o) => s + Number(o.totalAmount), 0), [todayOrders]);
+  const activeOrders  = useMemo(() => orders.filter(o => ACTIVE_STATUSES.includes(o.status)), [orders]);
+  const onlineRiders  = useMemo(() => riders.filter(r => r.isOnline), [riders]);
+  const pendingMerch  = useMemo(() => merchants.filter(m => m.status === 'PENDING'), [merchants]);
+  const recentOrders  = useMemo(() => [...orders].sort((a, b) => new Date(b.placedAt).getTime() - new Date(a.placedAt).getTime()).slice(0, 8), [orders]);
+  const revDays       = useMemo(() => buildRevDays(orders, revPeriod), [orders, revPeriod]);
+  const successRate   = useMemo(() => orders.length > 0 ? Math.round((orders.filter(o => DONE_STATUSES.includes(o.status)).length / orders.length) * 100) : 0, [orders]);
+  const avgRating     = ratings?.branch.average ?? 0;
+  const lastRefreshed = useMemo(() => new Date(refreshAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }), [refreshAt]);
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-4 fade-in">
+
+      <PageHeader onRefresh={() => void load()} refreshing={loading}>
+        <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>Last updated {lastRefreshed}</span>
+      </PageHeader>
+
       {/* KPI row */}
       <div className="grid grid-cols-4 gap-3">
-        <KpiTile label="GMV Today" icon={TrendingUp}
-          value={loading ? '…' : `${gmvToday} MMK`}
-          change="Completed orders today" changeType="up"
-          sparkValues={revenueDays.map(d => d.value)} />
-        <KpiTile label="Total Orders" icon={ShoppingBag}
-          value={loading ? '…' : totalOrders.toLocaleString()}
-          change="Live from API" changeType="up"
-          sparkValues={[60, 55, 70, 85, 72, 90, 88]} />
-        <KpiTile label="Active Riders" icon={Bike}
-          value={loading ? '…' : String(activeRiders)}
-          change="Online right now" changeType={activeRiders > 0 ? 'up' : 'down'}
-          sparkValues={[90, 88, 92, 87, 84, 85, activeRiders]} />
-        <KpiTile label="Pending Orders" icon={AlertCircle}
-          value={loading ? '…' : String(pendingCount)}
-          change="Preparing + confirmed" changeType="warn"
-          sparkValues={[5, 8, 6, 10, 9, 12, pendingCount]} />
+        <KpiCard
+          label="GMV Today" loading={loading}
+          value={fmtMMK(gmvToday)}
+          sub={gmvToday > 0 ? `${todayOrders.filter(o => DONE_STATUSES.includes(o.status)).length} completed today` : 'No completed orders today'}
+          subColor={gmvToday > 0 ? 'var(--success)' : 'var(--text-faint)'}
+          icon={TrendingUp} iconBg="var(--brand-muted)" iconColor="var(--brand)"
+        />
+        <KpiCard
+          label="Active Orders" loading={loading}
+          value={String(activeOrders.length)}
+          sub={activeOrders.length > 0 ? `${activeOrders.filter(o => o.status === 'PLACED').length} placed · ${activeOrders.filter(o => o.status === 'PREPARING').length} preparing` : 'No active orders'}
+          subColor={activeOrders.length > 0 ? 'var(--warning)' : 'var(--text-faint)'}
+          icon={ShoppingBag} iconBg="var(--warning-bg)" iconColor="var(--warning)"
+        />
+        <KpiCard
+          label="Riders Online" loading={loading}
+          value={`${onlineRiders.length} / ${riders.length}`}
+          sub={onlineRiders.length > 0 ? `${onlineRiders.filter(r => r.isAvailable).length} available` : 'No riders online'}
+          subColor={onlineRiders.length > 0 ? 'var(--success)' : 'var(--danger)'}
+          icon={Bike} iconBg="var(--success-bg)" iconColor="var(--success)"
+        />
+        <KpiCard
+          label="Pending Approvals" loading={loading}
+          value={String(pendingMerch.length)}
+          sub={pendingMerch.length > 0 ? 'Merchants awaiting review' : 'All merchants reviewed'}
+          subColor={pendingMerch.length > 0 ? 'var(--danger)' : 'var(--success)'}
+          icon={AlertTriangle}
+          iconBg={pendingMerch.length > 0 ? 'var(--danger-bg)' : 'var(--success-bg)'}
+          iconColor={pendingMerch.length > 0 ? 'var(--danger)' : 'var(--success)'}
+        />
       </div>
 
-      {/* Lower: chart + sidebar */}
+      {/* Main content */}
       <div className="flex gap-3" style={{ alignItems: 'flex-start' }}>
-        {/* Left: Revenue + Recent orders */}
-        <div className="flex-1 rounded-card p-4 flex flex-col gap-4" style={{ background: '#FFFFFF', border: '1px solid #E8E6F8' }}>
+
+        {/* Left: chart + table */}
+        <div className="flex-1 min-w-0 flex flex-col gap-3">
+
           {/* Revenue chart */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <span className="font-bold" style={{ fontSize: 13, color: '#1A1730' }}>Revenue overview</span>
+          <div className="card rounded-card p-4">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <div className="font-extrabold" style={{ fontSize: 13, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>Revenue overview</div>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>
+                  {loading ? '…' : `${fmtMMK(revDays.reduce((s, d) => s + d.value, 0))} total`}
+                </div>
+              </div>
               <div className="flex gap-1">
                 {([7, 30] as const).map(p => (
                   <button key={p} onClick={() => setRevPeriod(p)}
-                    className="rounded-pill px-2 py-0.5"
-                    style={{ fontSize: 10, background: revPeriod === p ? '#5B4FE9' : '#F6F5FF', color: revPeriod === p ? '#fff' : '#4A4770', border: '1px solid', borderColor: revPeriod === p ? '#5B4FE9' : '#E8E6F8' }}>
+                    className="rounded-lg px-2.5 py-1 font-semibold"
+                    style={{
+                      fontSize: 10, cursor: 'pointer',
+                      background: revPeriod === p ? 'var(--brand)' : 'var(--bg-subtle)',
+                      color: revPeriod === p ? '#fff' : 'var(--text-muted)',
+                      border: `1px solid ${revPeriod === p ? 'var(--brand)' : 'var(--border)'}`,
+                      transition: 'all 0.15s',
+                    }}>
                     {p}d
                   </button>
                 ))}
               </div>
             </div>
-            <RevenueChart days={revenueDays} loading={loading} />
+            <RevenueChart days={revDays} loading={loading} />
           </div>
 
-          <div style={{ borderTop: '1px solid #E8E6F8', paddingTop: 12 }}>
-            <div className="flex items-center justify-between mb-3">
-              <span className="font-bold" style={{ fontSize: 13, color: '#1A1730' }}>Recent orders</span>
-              <Link href="/orders" className="flex items-center gap-1" style={{ fontSize: 11, color: '#5B4FE9' }}>
+          {/* Recent orders */}
+          <div className="card rounded-card overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
+              <span className="font-extrabold" style={{ fontSize: 13, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>Recent orders</span>
+              <Link href="/orders" className="flex items-center gap-1 font-semibold" style={{ fontSize: 11, color: 'var(--brand)' }}>
                 View all <ArrowRight size={11} />
               </Link>
             </div>
 
             {loading ? (
-              <div className="flex justify-center py-4"><Spinner /></div>
-            ) : orders.length > 0 ? (
+              <div className="flex justify-center py-8"><Spinner /></div>
+            ) : recentOrders.length === 0 ? (
+              <div className="py-10 text-center" style={{ fontSize: 12, color: 'var(--text-muted)' }}>No orders yet</div>
+            ) : (
               <table className="w-full">
                 <thead>
-                  <tr style={{ background: '#F6F5FF' }}>
-                    {['Order ID', 'Customer', 'Merchant', 'Amount', 'Status'].map(h => (
-                      <th key={h} className="px-3 py-2 text-left font-semibold uppercase tracking-wider" style={{ fontSize: 9, color: '#8A88A8' }}>{h}</th>
+                  <tr style={{ background: 'var(--bg-subtle)' }}>
+                    {['Order', 'Customer', 'Merchant', 'Type', 'Amount', 'Status', 'Time'].map(h => (
+                      <th key={h} className="px-3 py-2.5 text-left font-semibold uppercase tracking-wider"
+                        style={{ fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.06em' }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {orders.map(o => (
-                    <tr key={o.orderId} style={{ borderTop: '1px solid #E8E6F8' }}>
-                      <td className="px-3 py-2 font-semibold" style={{ fontSize: 11, color: '#5B4FE9' }}>#{o.orderCode}</td>
-                      <td className="px-3 py-2" style={{ fontSize: 11, color: '#1A1730' }}>{o.customer.fullName ?? o.customer.phone}</td>
-                      <td className="px-3 py-2" style={{ fontSize: 11, color: '#4A4770' }}>{o.branch.merchantName}</td>
-                      <td className="px-3 py-2 font-semibold" style={{ fontSize: 11, color: '#1A1730' }}>
+                  {recentOrders.map((o, i) => (
+                    <tr key={o.orderId}
+                      style={{ borderTop: '1px solid var(--border)', background: i % 2 === 1 ? 'var(--bg-subtle)' : 'var(--bg-card)' }}>
+                      <td className="px-3 py-2.5 font-semibold" style={{ fontSize: 11, color: 'var(--brand)' }}>#{o.orderCode}</td>
+                      <td className="px-3 py-2.5" style={{ fontSize: 11, color: 'var(--text-primary)' }}>
+                        {o.customer.fullName ?? o.customer.phone}
+                      </td>
+                      <td className="px-3 py-2.5" style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{o.branch.merchantName}</td>
+                      <td className="px-3 py-2.5">
+                        <span className="rounded-pill font-semibold" style={{
+                          fontSize: 9.5, padding: '2px 7px',
+                          background: o.deliveryType === 'PICKUP' ? 'var(--warning-bg)' : 'var(--brand-muted)',
+                          color:      o.deliveryType === 'PICKUP' ? 'var(--warning)'    : 'var(--brand)',
+                        }}>
+                          {o.deliveryType === 'PICKUP' ? 'Pickup' : 'Delivery'}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2.5 font-semibold" style={{ fontSize: 11, color: 'var(--text-primary)' }}>
                         {Number(o.totalAmount).toLocaleString()} MMK
                       </td>
-                      <td className="px-3 py-2"><StatusBadge status={o.status} /></td>
+                      <td className="px-3 py-2.5"><StatusBadge status={o.status} /></td>
+                      <td className="px-3 py-2.5" style={{ fontSize: 10, color: 'var(--text-faint)' }}>{timeAgo(o.placedAt)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            ) : (
-              <div className="py-6 text-center" style={{ fontSize: 12, color: '#8A88A8' }}>No recent orders</div>
             )}
           </div>
         </div>
 
-        {/* Right column */}
-        <div className="flex flex-col gap-3" style={{ width: 280 }}>
-          {/* Notifications */}
-          <div className="rounded-card p-4" style={{ background: '#FFFFFF', border: '1px solid #E8E6F8' }}>
-            <div className="font-bold mb-3" style={{ fontSize: 13, color: '#1A1730' }}>Notifications</div>
-            <div className="flex flex-col gap-2">
-              {notifs.map(n => (
-                <div key={n.id} className="flex items-start gap-2 rounded-lg px-2 py-2"
-                  style={{ background: n.unread ? '#EEF0FF' : 'transparent' }}>
-                  {n.unread
-                    ? <CircleDot size={8} style={{ color: '#5B4FE9', marginTop: 3, flexShrink: 0 }} />
-                    : <div style={{ width: 8, flexShrink: 0 }} />}
-                  <div>
-                    <div className="font-semibold" style={{ fontSize: 11, color: '#1A1730' }}>{n.title}</div>
-                    <div style={{ fontSize: 10, color: '#8A88A8' }}>{n.sub}</div>
+        {/* Right sidebar */}
+        <div className="flex flex-col gap-3 flex-shrink-0" style={{ width: 272 }}>
+
+          {/* Quick actions */}
+          <div className="card rounded-card p-4">
+            <div className="font-extrabold mb-3" style={{ fontSize: 12, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>Quick actions</div>
+            <div className="flex flex-col gap-1.5">
+              {([
+                { label: 'Review merchants', count: pendingMerch.length,  href: '/merchants', color: 'var(--warning)', bg: 'var(--warning-bg)', icon: Package },
+                { label: 'Active orders',    count: activeOrders.length,  href: '/orders',    color: 'var(--brand)',   bg: 'var(--brand-muted)', icon: ShoppingBag },
+                { label: 'Online riders',    count: onlineRiders.length,  href: '/riders',    color: 'var(--success)', bg: 'var(--success-bg)', icon: Bike },
+                { label: 'All customers',    count: null,                 href: '/customers', color: 'var(--info)',    bg: 'var(--info-bg)', icon: Users },
+              ] as const).map(a => (
+                <Link key={a.href} href={a.href}
+                  className="flex items-center gap-2.5 rounded-xl px-3 py-2.5"
+                  style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', transition: 'background 0.13s, border-color 0.13s' }}
+                  onMouseEnter={e => {
+                    (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)';
+                    (e.currentTarget as HTMLElement).style.borderColor = 'var(--brand-border)';
+                  }}
+                  onMouseLeave={e => {
+                    (e.currentTarget as HTMLElement).style.background = 'var(--bg-subtle)';
+                    (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)';
+                  }}
+                >
+                  <div className="flex items-center justify-center rounded-lg flex-shrink-0"
+                    style={{ width: 28, height: 28, background: a.bg }}>
+                    <a.icon size={13} style={{ color: a.color }} />
                   </div>
-                </div>
+                  <span className="flex-1 font-semibold" style={{ fontSize: 11, color: 'var(--text-primary)' }}>{a.label}</span>
+                  {a.count !== null && a.count > 0 && (
+                    <span className="rounded-pill font-bold flex-shrink-0"
+                      style={{ fontSize: 9, padding: '2px 7px', background: a.bg, color: a.color }}>
+                      {a.count}
+                    </span>
+                  )}
+                  <ArrowRight size={10} style={{ color: 'var(--text-faint)', flexShrink: 0 }} />
+                </Link>
               ))}
             </div>
           </div>
 
           {/* Platform health */}
-          <div className="rounded-card p-4" style={{ background: '#FFFFFF', border: '1px solid #E8E6F8' }}>
-            <div className="font-bold mb-3" style={{ fontSize: 13, color: '#1A1730' }}>Platform health</div>
-            <div className="flex flex-col gap-3">
-              {HEALTH.map(h => (
-                <div key={h.label}>
-                  <div className="flex justify-between mb-1">
-                    <span style={{ fontSize: 10, color: '#4A4770' }}>{h.label}</span>
-                    <span className="font-bold" style={{ fontSize: 10, color: h.color }}>{h.value}%</span>
+          <div className="card rounded-card p-4">
+            <div className="font-extrabold mb-3" style={{ fontSize: 12, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>Platform health</div>
+            {loading ? <div className="flex justify-center py-4"><Spinner /></div> : (
+              <div className="flex flex-col gap-3">
+                {[
+                  { label: 'Order success rate', value: successRate, display: `${successRate}%`, color: successRate >= 80 ? 'var(--success)' : successRate >= 60 ? 'var(--warning)' : 'var(--danger)' },
+                  { label: 'Avg branch rating',  value: Math.round((avgRating / 5) * 100), display: avgRating > 0 ? `${avgRating.toFixed(1)} / 5` : 'No data', color: avgRating >= 4 ? 'var(--success)' : avgRating >= 3 ? 'var(--warning)' : 'var(--danger)' },
+                  { label: 'Rider availability',  value: riders.length > 0 ? Math.round((onlineRiders.length / riders.length) * 100) : 0, display: riders.length > 0 ? `${onlineRiders.length}/${riders.length} online` : 'No riders', color: 'var(--brand)' },
+                ].map(h => (
+                  <div key={h.label}>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>{h.label}</span>
+                      <span className="font-bold" style={{ fontSize: 10, color: h.color }}>{h.display}</span>
+                    </div>
+                    <div className="rounded-full overflow-hidden" style={{ height: 5, background: 'var(--bg-page)' }}>
+                      <div className="rounded-full h-full" style={{ width: `${h.value}%`, background: h.color, transition: 'width 0.6s var(--ease-out)' }} />
+                    </div>
                   </div>
-                  <div className="rounded-full overflow-hidden" style={{ height: 5, background: '#F6F5FF' }}>
-                    <div className="rounded-full h-full" style={{ width: `${h.value}%`, background: h.color, transition: 'width 0.6s' }} />
-                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Ratings snapshot */}
+          {ratings && ratings.totalCount > 0 && (
+            <div className="card rounded-card p-4">
+              <div className="flex items-center justify-between mb-3">
+                <span className="font-extrabold" style={{ fontSize: 12, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>Ratings</span>
+                <Link href="/ratings" style={{ fontSize: 10, color: 'var(--brand)', fontWeight: 600 }}>View all</Link>
+              </div>
+              <div className="flex items-center gap-3 mb-3">
+                <div className="flex items-center justify-center rounded-2xl flex-shrink-0"
+                  style={{ width: 44, height: 44, background: '#FFF9E5' }}>
+                  <Star size={20} style={{ color: '#F59E0B' }} fill="#F59E0B" />
                 </div>
-              ))}
+                <div>
+                  <div className="font-extrabold" style={{ fontSize: 20, color: 'var(--text-primary)', lineHeight: 1, letterSpacing: '-0.02em' }}>
+                    {ratings.branch.average.toFixed(1)}
+                  </div>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>{ratings.totalCount} reviews total</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 rounded-xl px-3 py-2" style={{ background: 'var(--success-bg)' }}>
+                <CheckCircle size={12} style={{ color: 'var(--success)', flexShrink: 0 }} />
+                <span style={{ fontSize: 10, color: 'var(--success)', fontWeight: 600 }}>
+                  {ratings.branch.count} branch reviews collected
+                </span>
+              </div>
             </div>
+          )}
+
+          {/* Order breakdown */}
+          <div className="card rounded-card p-4">
+            <div className="font-extrabold mb-3" style={{ fontSize: 12, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>Order breakdown</div>
+            {loading ? <div className="flex justify-center py-2"><Spinner /></div> : (
+              <div className="flex flex-col gap-2">
+                {([
+                  { label: 'Completed', statuses: ['COMPLETED', 'DELIVERED'], color: 'var(--success)', bg: 'var(--success-bg)' },
+                  { label: 'Active',    statuses: ACTIVE_STATUSES,            color: 'var(--brand)',   bg: 'var(--brand-muted)' },
+                  { label: 'Cancelled', statuses: ['CANCELLED'],              color: 'var(--danger)',  bg: 'var(--danger-bg)' },
+                ] as const).map(b => {
+                  const count = orders.filter(o => (b.statuses as readonly string[]).includes(o.status)).length;
+                  const pct   = orders.length > 0 ? Math.round((count / orders.length) * 100) : 0;
+                  return (
+                    <div key={b.label} className="flex items-center gap-2.5">
+                      <div className="rounded-full flex-shrink-0" style={{ width: 7, height: 7, background: b.color }} />
+                      <span className="flex-1" style={{ fontSize: 10, color: 'var(--text-secondary)' }}>{b.label}</span>
+                      <span className="font-bold" style={{ fontSize: 11, color: 'var(--text-primary)' }}>{count}</span>
+                      <span className="rounded-pill font-semibold"
+                        style={{ fontSize: 9, padding: '1.5px 6px', background: b.bg, color: b.color }}>{pct}%</span>
+                    </div>
+                  );
+                })}
+                <div className="mt-2 rounded-full overflow-hidden flex" style={{ height: 5, background: 'var(--bg-page)' }}>
+                  {([
+                    { statuses: ['COMPLETED', 'DELIVERED'], color: 'var(--success)' },
+                    { statuses: ACTIVE_STATUSES,            color: 'var(--brand)' },
+                    { statuses: ['CANCELLED'],              color: 'var(--danger)' },
+                  ] as const).map((b, i) => {
+                    const pct = orders.length > 0 ? (orders.filter(o => (b.statuses as readonly string[]).includes(o.status)).length / orders.length) * 100 : 0;
+                    return <div key={i} style={{ width: `${pct}%`, background: b.color, transition: 'width 0.6s var(--ease-out)' }} />;
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 justify-center" style={{ fontSize: 9, color: 'var(--text-faint)' }}>
+            <Clock size={9} />
+            <span>Auto-refreshes on page reload</span>
           </div>
         </div>
       </div>

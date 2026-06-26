@@ -8,6 +8,7 @@ import {
 import { apiGet } from '@/lib/api/client';
 import { ep } from '@/lib/api/endpoints';
 import { Spinner } from '@/components/ui/spinner';
+import { fmtMMKShort, fmtDateShort } from '@/lib/utils/formatters';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -58,27 +59,14 @@ type InventoryOverview = {
   }[];
 };
 
-type OrderSummary = {
+type ReportOrderSummary = {
   orderId: string;
   status: string;
   totalAmount: string;
   placedAt: string;
 };
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function fmtMMK(val: number): string {
-  if (val >= 1_000_000) return `${(val / 1_000_000).toFixed(2)}M`;
-  if (val >= 1_000) return `${(val / 1_000).toFixed(0)}K`;
-  return val.toString();
-}
-
-function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
-}
-
 // ─── Dual-series bar chart ────────────────────────────────────────────────────
-// series: [{color, label, values[]}]
 
 type ChartSeries = { color: string; label: string; values: number[] };
 
@@ -95,11 +83,8 @@ function BarChart({
 }) {
   const allVals = series.flatMap(s => s.values);
   const maxVal  = Math.max(...allVals, 1);
-
-  // Y-axis ticks — 4 steps
-  const ticks = [0, 0.25, 0.5, 0.75, 1].map(t => Math.round(t * maxVal));
-
-  const BAR_AREA = height - 28; // reserve bottom for labels
+  const ticks   = [0, 0.25, 0.5, 0.75, 1].map(t => Math.round(t * maxVal));
+  const BAR_AREA = height - 28;
 
   return (
     <div style={{ width: '100%', position: 'relative' }}>
@@ -110,7 +95,7 @@ function BarChart({
           style={{ height: BAR_AREA + 4, paddingTop: 2 }}
         >
           {[...ticks].reverse().map((t, i) => (
-            <span key={i} style={{ fontSize: 8, color: '#C0BDE8', lineHeight: 1 }}>
+            <span key={i} style={{ fontSize: 8, color: 'var(--text-faint)', lineHeight: 1 }}>
               {t}{yUnit}
             </span>
           ))}
@@ -118,13 +103,13 @@ function BarChart({
 
         {/* Chart area */}
         <div className="flex-1 relative">
-          {/* Horizontal grid lines */}
+          {/* Grid lines */}
           <div
             className="absolute inset-0 flex flex-col justify-between pointer-events-none"
             style={{ height: BAR_AREA }}
           >
             {ticks.map((_, i) => (
-              <div key={i} style={{ borderTop: '1px dashed #F0EFFB', width: '100%' }} />
+              <div key={i} style={{ borderTop: '1px dashed var(--bg-page)', width: '100%' }} />
             ))}
           </div>
 
@@ -132,7 +117,6 @@ function BarChart({
           <div className="flex items-end gap-0.5" style={{ height: BAR_AREA }}>
             {labels.map((label, i) => (
               <div key={i} className="flex-1 flex flex-col items-center justify-end gap-0.5" style={{ height: BAR_AREA }}>
-                {/* stacked bars per series */}
                 <div className="w-full flex gap-px items-end" style={{ height: BAR_AREA - 4 }}>
                   {series.map((s, si) => {
                     const pct = maxVal > 0 ? (s.values[i] ?? 0) / maxVal : 0;
@@ -154,7 +138,7 @@ function BarChart({
           {/* X labels */}
           <div className="flex gap-0.5 mt-1">
             {labels.map((label, i) => (
-              <div key={i} className="flex-1 text-center" style={{ fontSize: 8, color: '#8A88A8' }}>
+              <div key={i} className="flex-1 text-center" style={{ fontSize: 8, color: 'var(--text-muted)' }}>
                 {label}
               </div>
             ))}
@@ -167,7 +151,7 @@ function BarChart({
         {series.map(s => (
           <div key={s.label} className="flex items-center gap-1.5">
             <div className="rounded-sm flex-shrink-0" style={{ width: 10, height: 10, background: s.color, opacity: 0.85 }} />
-            <span style={{ fontSize: 9, color: '#8A88A8' }}>{s.label}</span>
+            <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>{s.label}</span>
           </div>
         ))}
       </div>
@@ -215,7 +199,7 @@ function LineChart({
           style={{ height: PLOT_H + 4, paddingTop: 2 }}
         >
           {[...ticks].reverse().map((t, i) => (
-            <span key={i} style={{ fontSize: 8, color: '#C0BDE8', lineHeight: 1 }}>
+            <span key={i} style={{ fontSize: 8, color: 'var(--text-faint)', lineHeight: 1 }}>
               {t}{yUnit}
             </span>
           ))}
@@ -230,12 +214,12 @@ function LineChart({
               className="absolute w-full"
               style={{
                 top: `${(1 - _ / maxVal) * 100}%`,
-                borderTop: '1px dashed #F0EFFB',
+                borderTop: '1px dashed var(--bg-page)',
               }}
             />
           ))}
 
-          {/* SVG lines — viewBox preserves aspect ratio */}
+          {/* SVG lines */}
           <svg
             viewBox={`0 0 100 ${PLOT_H}`}
             preserveAspectRatio="none"
@@ -253,7 +237,6 @@ function LineChart({
                 opacity={0.85}
               />
             ))}
-            {/* Dots on last point */}
             {series.map(s => {
               if (n === 0) return null;
               const x = 100;
@@ -270,7 +253,7 @@ function LineChart({
       {/* X labels */}
       <div className="flex gap-0.5 mt-1 pl-8">
         {labels.map((label, i) => (
-          <div key={i} className="flex-1 text-center" style={{ fontSize: 8, color: '#8A88A8' }}>
+          <div key={i} className="flex-1 text-center" style={{ fontSize: 8, color: 'var(--text-muted)' }}>
             {i % Math.ceil(n / 7) === 0 || i === n - 1 ? label : ''}
           </div>
         ))}
@@ -281,7 +264,7 @@ function LineChart({
         {series.map(s => (
           <div key={s.label} className="flex items-center gap-1.5">
             <div className="rounded-full flex-shrink-0" style={{ width: 8, height: 8, background: s.color, opacity: 0.85 }} />
-            <span style={{ fontSize: 9, color: '#8A88A8' }}>{s.label}</span>
+            <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>{s.label}</span>
           </div>
         ))}
       </div>
@@ -304,9 +287,9 @@ function PeriodSelector({ value, onChange }: { value: Period; onChange: (v: Peri
           className="rounded-lg px-2.5 py-1 font-semibold"
           style={{
             fontSize: 10,
-            background: value === p ? '#5B4FE9' : '#F6F5FF',
-            color: value === p ? '#fff' : '#4A4770',
-            border: value === p ? '1px solid #5B4FE9' : '1px solid #E8E6F8',
+            background: value === p ? 'var(--brand)' : 'var(--bg-subtle)',
+            color: value === p ? '#fff' : 'var(--text-secondary)',
+            border: value === p ? '1px solid var(--brand)' : '1px solid var(--border)',
           }}
         >
           {p}d
@@ -322,7 +305,7 @@ export default function ReportsPage() {
   const [period, setPeriod]       = useState<Period>(14);
   const [overview, setOverview]   = useState<InventoryOverview | null>(null);
   const [trends, setTrends]       = useState<TrendsReport | null>(null);
-  const [orders, setOrders]       = useState<OrderSummary[]>([]);
+  const [orders, setOrders]       = useState<ReportOrderSummary[]>([]);
   const [loading, setLoading]     = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -334,7 +317,7 @@ export default function ReportsPage() {
       const [ovRes, trendRes, ordRes] = await Promise.allSettled([
         apiGet<InventoryOverview>(ep.reportInventoryOverview + qs),
         apiGet<TrendsReport>(ep.reportInventoryTrends + qs),
-        apiGet<OrderSummary[]>('/admin/orders?limit=500'),
+        apiGet<ReportOrderSummary[]>('/admin/orders?limit=500'),
       ]);
       if (ovRes.status === 'fulfilled')    setOverview(ovRes.value);
       if (trendRes.status === 'fulfilled') setTrends(trendRes.value);
@@ -347,7 +330,6 @@ export default function ReportsPage() {
 
   useEffect(() => { void load(period); }, [load, period]);
 
-  // ── Derived order stats ────────────────────────────────────────────────────
   const completed   = orders.filter(o => o.status === 'COMPLETED').length;
   const cancelled   = orders.filter(o => o.status === 'CANCELLED').length;
   const inProgress  = orders.filter(o => ['CONFIRMED', 'PREPARING', 'READY', 'DELIVERING'].includes(o.status)).length;
@@ -355,16 +337,14 @@ export default function ReportsPage() {
   const totalOrders = orders.length;
 
   const orderStatusBars = [
-    { label: 'Completed',   val: totalOrders > 0 ? Math.round((completed / totalOrders) * 100) : 0, color: '#16A660' },
-    { label: 'Cancelled',   val: totalOrders > 0 ? Math.round((cancelled / totalOrders) * 100) : 0, color: '#D84040' },
-    { label: 'In progress', val: totalOrders > 0 ? Math.round((inProgress / totalOrders) * 100) : 0, color: '#5B4FE9' },
+    { label: 'Completed',   val: totalOrders > 0 ? Math.round((completed / totalOrders) * 100) : 0, color: 'var(--success)' },
+    { label: 'Cancelled',   val: totalOrders > 0 ? Math.round((cancelled / totalOrders) * 100) : 0, color: 'var(--danger)' },
+    { label: 'In progress', val: totalOrders > 0 ? Math.round((inProgress / totalOrders) * 100) : 0, color: 'var(--brand)' },
   ];
 
-  // ── Revenue by date (from real orders) ────────────────────────────────────
   const revenueByDate = useMemo<{ date: string; revenue: number; count: number }[]>(() => {
     if (!trends) return [];
     const map = new Map<string, { revenue: number; count: number }>();
-    // Seed with all trend bucket dates so chart has same X-axis
     trends.buckets.forEach(b => map.set(b.date, { revenue: 0, count: 0 }));
     orders
       .filter(o => o.status === 'COMPLETED' && o.placedAt)
@@ -379,53 +359,51 @@ export default function ReportsPage() {
     return trends.buckets.map(b => ({ date: b.date, ...( map.get(b.date) ?? { revenue: 0, count: 0 }) }));
   }, [trends, orders]);
 
-  // ── Chart data from trends ─────────────────────────────────────────────────
-  const trendLabels = trends?.buckets.map(b => fmtDate(b.date)) ?? [];
+  const trendLabels = trends?.buckets.map(b => fmtDateShort(b.date)) ?? [];
 
   const alertTrendSeries: ChartSeries[] = trends
     ? [
-        { color: '#D84040', label: 'Created',  values: trends.buckets.map(b => b.createdAlertsCount) },
-        { color: '#5B4FE9', label: 'Ack\'d',   values: trends.buckets.map(b => b.acknowledgedCount) },
-        { color: '#16A660', label: 'Resolved', values: trends.buckets.map(b => b.resolvedCount) },
-        { color: '#8A88A8', label: 'Dismissed',values: trends.buckets.map(b => b.dismissedCount) },
+        { color: 'var(--danger)',  label: 'Created',   values: trends.buckets.map(b => b.createdAlertsCount) },
+        { color: 'var(--brand)',   label: "Ack'd",     values: trends.buckets.map(b => b.acknowledgedCount) },
+        { color: 'var(--success)', label: 'Resolved',  values: trends.buckets.map(b => b.resolvedCount) },
+        { color: 'var(--text-muted)', label: 'Dismissed', values: trends.buckets.map(b => b.dismissedCount) },
       ]
     : [];
 
   const alertKindSeries: ChartSeries[] = trends
     ? [
-        { color: '#D84040', label: 'Shortage (attention)',     values: trends.buckets.map(b => b.attentionAlertsCount) },
-        { color: '#5B4FE9', label: 'Restock (compensation)',   values: trends.buckets.map(b => b.compensationAlertsCount) },
+        { color: 'var(--danger)', label: 'Shortage (attention)',   values: trends.buckets.map(b => b.attentionAlertsCount) },
+        { color: 'var(--brand)',  label: 'Restock (compensation)', values: trends.buckets.map(b => b.compensationAlertsCount) },
       ]
     : [];
 
   const revenueSeries = revenueByDate.length > 0
-    ? [{ color: '#5B4FE9', label: 'Revenue (MMK)', values: revenueByDate.map(d => d.revenue) }]
+    ? [{ color: 'var(--brand)', label: 'Revenue (MMK)', values: revenueByDate.map(d => d.revenue) }]
     : [];
 
   const orderCountSeries = revenueByDate.length > 0
-    ? [{ color: '#16A660', label: 'Orders completed', values: revenueByDate.map(d => d.count) }]
+    ? [{ color: 'var(--success)', label: 'Orders completed', values: revenueByDate.map(d => d.count) }]
     : [];
 
   const followUpSeries: ChartSeries[] = trends
     ? [
-        { color: '#D4820A', label: 'Reminders',   values: trends.buckets.map(b => b.reminderCount) },
-        { color: '#D84040', label: 'Escalations', values: trends.buckets.map(b => b.escalationCount) },
+        { color: 'var(--warning)', label: 'Reminders',   values: trends.buckets.map(b => b.reminderCount) },
+        { color: 'var(--danger)',  label: 'Escalations', values: trends.buckets.map(b => b.escalationCount) },
       ]
     : [];
 
   const isRefreshActive = loading || refreshing;
 
-  // ─── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="space-y-3 p-5" style={{ background: '#F0EFFB', minHeight: '100vh' }}>
+    <div className="space-y-3 p-5" style={{ background: 'var(--bg-page)', minHeight: '100vh' }}>
 
-      {/* ── Header ─────────────────────────────────────────────────────────── */}
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-extrabold" style={{ fontSize: 16, color: '#1A1730' }}>Reports &amp; Analytics</h1>
-          <p style={{ fontSize: 11, color: '#8A88A8', marginTop: 2 }}>
+          <h1 className="font-extrabold" style={{ fontSize: 16, color: 'var(--text-primary)' }}>Reports &amp; Analytics</h1>
+          <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
             {trends
-              ? `${fmtDate(trends.windowStartedAt)} — ${fmtDate(trends.windowEndedAt)}`
+              ? `${fmtDateShort(trends.windowStartedAt)} — ${fmtDateShort(trends.windowEndedAt)}`
               : 'Loading…'}
           </p>
         </div>
@@ -435,7 +413,7 @@ export default function ReportsPage() {
             onClick={() => void load(period, true)}
             disabled={isRefreshActive}
             className="flex items-center gap-1.5 rounded-xl px-3 py-2 font-semibold"
-            style={{ fontSize: 11, background: '#fff', color: '#4A4770', border: '1px solid #E8E6F8' }}
+            style={{ fontSize: 11, background: 'var(--bg-card)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}
           >
             <RefreshCw size={12} style={{ animation: isRefreshActive ? 'spin 1s linear infinite' : 'none' }} />
             Refresh
@@ -443,51 +421,30 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      {/* ── KPI tiles ──────────────────────────────────────────────────────── */}
+      {/* KPI tiles */}
       <div className="grid grid-cols-4 gap-3">
         {[
-          {
-            icon: TrendingUp,
-            label: `Revenue (${period}d completed)`,
-            val: loading ? '…' : `${fmtMMK(totalRevenue)} MMK`,
-            color: '#5B4FE9',
-          },
-          {
-            icon: ShoppingBag,
-            label: 'Orders loaded',
-            val: loading ? '…' : totalOrders.toLocaleString(),
-            color: '#16A660',
-          },
-          {
-            icon: AlertTriangle,
-            label: `Alerts (${period}d)`,
-            val: loading ? '…' : String(overview?.totalAlertsCount ?? 0),
-            color: '#D4820A',
-          },
-          {
-            icon: AlertTriangle,
-            label: 'Out of stock',
-            val: loading ? '…' : String(overview?.attentionLevelCounts?.outOfStockAlertsCount ?? 0),
-            color: '#D84040',
-          },
+          { icon: TrendingUp,    label: `Revenue (${period}d completed)`,                    val: loading ? '…' : `${fmtMMKShort(totalRevenue)} MMK`, color: 'var(--brand)' },
+          { icon: ShoppingBag,   label: 'Orders loaded',                                      val: loading ? '…' : totalOrders.toLocaleString(),       color: 'var(--success)' },
+          { icon: AlertTriangle, label: `Alerts (${period}d)`,                               val: loading ? '…' : String(overview?.totalAlertsCount ?? 0), color: 'var(--warning)' },
+          { icon: AlertTriangle, label: 'Out of stock',                                       val: loading ? '…' : String(overview?.attentionLevelCounts?.outOfStockAlertsCount ?? 0), color: 'var(--danger)' },
         ].map(k => (
-          <div key={k.label} className="rounded-2xl p-4" style={{ background: '#fff', border: '1px solid #E8E6F8' }}>
+          <div key={k.label} className="card rounded-card p-4">
             <div className="flex items-center gap-2 mb-2">
               <k.icon size={14} style={{ color: k.color }} />
-              <span className="font-semibold uppercase tracking-wider" style={{ fontSize: 9, color: '#8A88A8' }}>{k.label}</span>
+              <span className="font-semibold uppercase tracking-wider" style={{ fontSize: 9, color: 'var(--text-muted)' }}>{k.label}</span>
             </div>
-            <div className="font-extrabold" style={{ fontSize: 20, color: '#1A1730' }}>{k.val}</div>
+            <div className="font-extrabold" style={{ fontSize: 20, color: 'var(--text-primary)' }}>{k.val}</div>
           </div>
         ))}
       </div>
 
-      {/* ── Row 1: Revenue trend + Order status ────────────────────────────── */}
+      {/* Row 1: Revenue trend + Order status */}
       <div className="flex gap-3">
-        {/* Revenue line chart (real order data) */}
-        <div className="flex-1 rounded-2xl p-4" style={{ background: '#fff', border: '1px solid #E8E6F8', minWidth: 0 }}>
+        <div className="flex-1 card rounded-card p-4" style={{ minWidth: 0 }}>
           <div className="flex items-center justify-between mb-4">
-            <span className="font-bold" style={{ fontSize: 13, color: '#1A1730' }}>Revenue trend</span>
-            <span style={{ fontSize: 10, color: '#8A88A8' }}>
+            <span className="font-bold" style={{ fontSize: 13, color: 'var(--text-primary)' }}>Revenue trend</span>
+            <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
               {loading ? '…' : `${period}d · completed orders`}
             </span>
           </div>
@@ -495,13 +452,12 @@ export default function ReportsPage() {
             ? <div className="flex justify-center py-8"><Spinner /></div>
             : revenueSeries.length > 0 && trendLabels.length > 0
               ? <LineChart labels={trendLabels} series={revenueSeries} yUnit="" />
-              : <div className="flex items-center justify-center py-8" style={{ fontSize: 11, color: '#C0BDE8' }}>No revenue data for this period</div>
+              : <div className="flex items-center justify-center py-8" style={{ fontSize: 11, color: 'var(--text-faint)' }}>No revenue data for this period</div>
           }
         </div>
 
-        {/* Order status breakdown */}
-        <div className="rounded-2xl p-4" style={{ width: 200, flexShrink: 0, background: '#fff', border: '1px solid #E8E6F8' }}>
-          <div className="font-bold mb-4" style={{ fontSize: 13, color: '#1A1730' }}>Order status</div>
+        <div className="card rounded-card p-4" style={{ width: 200, flexShrink: 0 }}>
+          <div className="font-bold mb-4" style={{ fontSize: 13, color: 'var(--text-primary)' }}>Order status</div>
           {loading
             ? <div className="flex justify-center py-4"><Spinner /></div>
             : (
@@ -509,22 +465,22 @@ export default function ReportsPage() {
                 {orderStatusBars.map(s => (
                   <div key={s.label}>
                     <div className="flex justify-between mb-1">
-                      <span style={{ fontSize: 10, color: '#4A4770' }}>{s.label}</span>
+                      <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>{s.label}</span>
                       <span className="font-bold" style={{ fontSize: 10, color: s.color }}>{s.val}%</span>
                     </div>
-                    <div className="rounded-full overflow-hidden" style={{ height: 5, background: '#F6F5FF' }}>
+                    <div className="rounded-full overflow-hidden" style={{ height: 5, background: 'var(--bg-subtle)' }}>
                       <div className="rounded-full h-full transition-all" style={{ width: `${s.val}%`, background: s.color }} />
                     </div>
                   </div>
                 ))}
-                <div className="pt-2 border-t space-y-1" style={{ borderColor: '#F0EFFB' }}>
+                <div className="pt-2 border-t space-y-1" style={{ borderColor: 'var(--border)' }}>
                   {[
-                    { label: 'Completed', val: completed, color: '#16A660' },
-                    { label: 'Cancelled', val: cancelled, color: '#D84040' },
-                    { label: 'In progress', val: inProgress, color: '#5B4FE9' },
+                    { label: 'Completed',   val: completed,  color: 'var(--success)' },
+                    { label: 'Cancelled',   val: cancelled,  color: 'var(--danger)' },
+                    { label: 'In progress', val: inProgress, color: 'var(--brand)' },
                   ].map(s => (
                     <div key={s.label} className="flex justify-between">
-                      <span style={{ fontSize: 10, color: '#8A88A8' }}>{s.label}</span>
+                      <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{s.label}</span>
                       <span className="font-bold" style={{ fontSize: 10, color: s.color }}>{s.val}</span>
                     </div>
                   ))}
@@ -535,84 +491,80 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      {/* ── Row 2: Completed orders per day ────────────────────────────────── */}
+      {/* Row 2: Completed orders per day */}
       {!loading && orderCountSeries.length > 0 && trendLabels.length > 0 && (
-        <div className="rounded-2xl p-4" style={{ background: '#fff', border: '1px solid #E8E6F8' }}>
+        <div className="card rounded-card p-4">
           <div className="flex items-center justify-between mb-4">
-            <span className="font-bold" style={{ fontSize: 13, color: '#1A1730' }}>Orders completed per day</span>
-            <span style={{ fontSize: 10, color: '#8A88A8' }}>{period}d window</span>
+            <span className="font-bold" style={{ fontSize: 13, color: 'var(--text-primary)' }}>Orders completed per day</span>
+            <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{period}d window</span>
           </div>
           <BarChart labels={trendLabels} series={orderCountSeries} height={120} />
         </div>
       )}
 
-      {/* ── Row 3: Alert lifecycle trend ───────────────────────────────────── */}
+      {/* Row 3: Alert lifecycle trend */}
       {!loading && trends && (
         <div className="flex gap-3">
-          {/* Alert lifecycle bar chart */}
-          <div className="flex-1 rounded-2xl p-4" style={{ background: '#fff', border: '1px solid #E8E6F8', minWidth: 0 }}>
+          <div className="flex-1 card rounded-card p-4" style={{ minWidth: 0 }}>
             <div className="flex items-center justify-between mb-4">
-              <span className="font-bold" style={{ fontSize: 13, color: '#1A1730' }}>Alert lifecycle trend</span>
-              <span style={{ fontSize: 10, color: '#8A88A8' }}>{period}d · daily counts</span>
+              <span className="font-bold" style={{ fontSize: 13, color: 'var(--text-primary)' }}>Alert lifecycle trend</span>
+              <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{period}d · daily counts</span>
             </div>
             <BarChart labels={trendLabels} series={alertTrendSeries} />
           </div>
 
-          {/* Alert kind split */}
-          <div className="rounded-2xl p-4" style={{ width: 240, flexShrink: 0, background: '#fff', border: '1px solid #E8E6F8' }}>
-            <div className="font-bold mb-4" style={{ fontSize: 13, color: '#1A1730' }}>Alert kind split</div>
+          <div className="card rounded-card p-4" style={{ width: 240, flexShrink: 0 }}>
+            <div className="font-bold mb-4" style={{ fontSize: 13, color: 'var(--text-primary)' }}>Alert kind split</div>
             <BarChart labels={trendLabels} series={alertKindSeries} height={120} />
           </div>
         </div>
       )}
 
-      {/* ── Row 4: Follow-up actions trend ─────────────────────────────────── */}
+      {/* Row 4: Follow-up actions trend */}
       {!loading && trends && (
         <div className="flex gap-3">
-          {/* Follow-up line chart */}
-          <div className="flex-1 rounded-2xl p-4" style={{ background: '#fff', border: '1px solid #E8E6F8', minWidth: 0 }}>
+          <div className="flex-1 card rounded-card p-4" style={{ minWidth: 0 }}>
             <div className="flex items-center justify-between mb-4">
-              <span className="font-bold" style={{ fontSize: 13, color: '#1A1730' }}>Follow-up actions</span>
-              <span style={{ fontSize: 10, color: '#8A88A8' }}>Reminders &amp; escalations per day</span>
+              <span className="font-bold" style={{ fontSize: 13, color: 'var(--text-primary)' }}>Follow-up actions</span>
+              <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Reminders &amp; escalations per day</span>
             </div>
             <LineChart labels={trendLabels} series={followUpSeries} height={120} />
           </div>
 
-          {/* Inventory alert overview counts */}
           {overview && (
-            <div className="rounded-2xl p-4" style={{ width: 260, flexShrink: 0, background: '#fff', border: '1px solid #E8E6F8' }}>
-              <div className="font-bold mb-3" style={{ fontSize: 13, color: '#1A1730' }}>
+            <div className="card rounded-card p-4" style={{ width: 260, flexShrink: 0 }}>
+              <div className="font-bold mb-3" style={{ fontSize: 13, color: 'var(--text-primary)' }}>
                 Alert totals
-                <span style={{ fontSize: 10, color: '#8A88A8', fontWeight: 400, marginLeft: 6 }}>
+                <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 400, marginLeft: 6 }}>
                   {period}d
                 </span>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 {[
-                  { icon: Clock,        label: 'Open',         val: overview.statusCounts.openAlertsCount,         color: '#D4820A' },
-                  { icon: CheckCircle,  label: 'Acknowledged', val: overview.statusCounts.acknowledgedAlertsCount, color: '#5B4FE9' },
-                  { icon: CheckCircle,  label: 'Resolved',     val: overview.statusCounts.resolvedAlertsCount,     color: '#16A660' },
-                  { icon: XCircle,      label: 'Dismissed',    val: overview.statusCounts.dismissedAlertsCount,    color: '#8A88A8' },
+                  { icon: Clock,       label: 'Open',         val: overview.statusCounts.openAlertsCount,         color: 'var(--warning)' },
+                  { icon: CheckCircle, label: 'Acknowledged', val: overview.statusCounts.acknowledgedAlertsCount, color: 'var(--brand)' },
+                  { icon: CheckCircle, label: 'Resolved',     val: overview.statusCounts.resolvedAlertsCount,     color: 'var(--success)' },
+                  { icon: XCircle,     label: 'Dismissed',    val: overview.statusCounts.dismissedAlertsCount,    color: 'var(--text-muted)' },
                 ].map(s => (
-                  <div key={s.label} className="rounded-xl p-2.5 flex items-center gap-2" style={{ background: '#F6F5FF' }}>
+                  <div key={s.label} className="rounded-xl p-2.5 flex items-center gap-2" style={{ background: 'var(--bg-subtle)' }}>
                     <s.icon size={13} style={{ color: s.color, flexShrink: 0 }} />
                     <div>
-                      <div className="font-extrabold" style={{ fontSize: 15, color: '#1A1730', lineHeight: 1 }}>{s.val}</div>
-                      <div style={{ fontSize: 9, color: '#8A88A8', marginTop: 1 }}>{s.label}</div>
+                      <div className="font-extrabold" style={{ fontSize: 15, color: 'var(--text-primary)', lineHeight: 1 }}>{s.val}</div>
+                      <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 1 }}>{s.label}</div>
                     </div>
                   </div>
                 ))}
               </div>
-              <div className="mt-3 pt-3 space-y-1" style={{ borderTop: '1px solid #E8E6F8' }}>
+              <div className="mt-3 pt-3 space-y-1" style={{ borderTop: '1px solid var(--border)' }}>
                 {[
-                  { label: 'Low stock',          val: overview.attentionLevelCounts.lowStockAlertsCount,   color: '#D4820A' },
-                  { label: 'Out of stock',        val: overview.attentionLevelCounts.outOfStockAlertsCount, color: '#D84040' },
-                  { label: 'Unread by merchant',  val: overview.unreadMerchantAlertsCount,                  color: '#8A88A8' },
-                  { label: 'Reminders sent',      val: overview.followUpCounts?.reminderCount ?? 0,         color: '#D4820A' },
-                  { label: 'Escalations',         val: overview.followUpCounts?.escalationCount ?? 0,       color: '#D84040' },
+                  { label: 'Low stock',          val: overview.attentionLevelCounts.lowStockAlertsCount,   color: 'var(--warning)' },
+                  { label: 'Out of stock',        val: overview.attentionLevelCounts.outOfStockAlertsCount, color: 'var(--danger)' },
+                  { label: 'Unread by merchant',  val: overview.unreadMerchantAlertsCount,                  color: 'var(--text-muted)' },
+                  { label: 'Reminders sent',      val: overview.followUpCounts?.reminderCount ?? 0,         color: 'var(--warning)' },
+                  { label: 'Escalations',         val: overview.followUpCounts?.escalationCount ?? 0,       color: 'var(--danger)' },
                 ].map(s => (
                   <div key={s.label} className="flex justify-between items-center">
-                    <span style={{ fontSize: 10, color: '#8A88A8' }}>{s.label}</span>
+                    <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{s.label}</span>
                     <span className="font-bold" style={{ fontSize: 10, color: s.color }}>{s.val}</span>
                   </div>
                 ))}
@@ -622,18 +574,18 @@ export default function ReportsPage() {
         </div>
       )}
 
-      {/* ── Top branches table ──────────────────────────────────────────────── */}
+      {/* Top branches table */}
       {!loading && overview?.topBranches && overview.topBranches.length > 0 && (
-        <div className="rounded-2xl overflow-hidden" style={{ background: '#fff', border: '1px solid #E8E6F8' }}>
-          <div className="px-4 py-3 font-bold flex items-center justify-between" style={{ fontSize: 13, color: '#1A1730', borderBottom: '1px solid #E8E6F8' }}>
+        <div className="card rounded-card overflow-hidden">
+          <div className="px-4 py-3 font-bold flex items-center justify-between" style={{ fontSize: 13, color: 'var(--text-primary)', borderBottom: '1px solid var(--border)' }}>
             Top branches by alerts
-            <span style={{ fontSize: 10, color: '#8A88A8', fontWeight: 400 }}>{period}d window</span>
+            <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 400 }}>{period}d window</span>
           </div>
           <table className="w-full">
             <thead>
-              <tr style={{ background: '#F6F5FF' }}>
+              <tr style={{ background: 'var(--bg-subtle)' }}>
                 {['#', 'Branch', 'Total', 'Open', 'Escalated', 'Heat'].map(h => (
-                  <th key={h} className="px-4 py-2 text-left font-semibold uppercase tracking-wider" style={{ fontSize: 9, color: '#8A88A8' }}>{h}</th>
+                  <th key={h} className="px-4 py-2 text-left font-semibold uppercase tracking-wider" style={{ fontSize: 9, color: 'var(--text-muted)' }}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -642,21 +594,21 @@ export default function ReportsPage() {
                 const maxTotal = overview.topBranches[0]?.totalAlertsCount ?? 1;
                 const pct = Math.round((b.totalAlertsCount / maxTotal) * 100);
                 return (
-                  <tr key={b.branchId ?? i} style={{ borderTop: '1px solid #F0EFFB', background: i % 2 === 1 ? '#FAFAFA' : '#fff' }}>
-                    <td className="px-4 py-2.5" style={{ fontSize: 10, color: '#C0BDE8', width: 32 }}>{i + 1}</td>
-                    <td className="px-4 py-2.5 font-semibold" style={{ fontSize: 11, color: '#1A1730', maxWidth: 180 }}>
+                  <tr key={b.branchId ?? i} style={{ borderTop: '1px solid var(--border)', background: i % 2 === 1 ? 'var(--bg-subtle)' : 'var(--bg-card)' }}>
+                    <td className="px-4 py-2.5" style={{ fontSize: 10, color: 'var(--text-faint)', width: 32 }}>{i + 1}</td>
+                    <td className="px-4 py-2.5 font-semibold" style={{ fontSize: 11, color: 'var(--text-primary)', maxWidth: 180 }}>
                       <div className="truncate">{b.branchName ?? '—'}</div>
                     </td>
-                    <td className="px-4 py-2.5 font-bold" style={{ fontSize: 11, color: '#D4820A' }}>{b.totalAlertsCount}</td>
-                    <td className="px-4 py-2.5" style={{ fontSize: 11, color: '#4A4770' }}>{b.openLifecycleAlertsCount}</td>
-                    <td className="px-4 py-2.5 font-semibold" style={{ fontSize: 11, color: b.escalatedAlertsCount > 0 ? '#D84040' : '#8A88A8' }}>
+                    <td className="px-4 py-2.5 font-bold" style={{ fontSize: 11, color: 'var(--warning)' }}>{b.totalAlertsCount}</td>
+                    <td className="px-4 py-2.5" style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{b.openLifecycleAlertsCount}</td>
+                    <td className="px-4 py-2.5 font-semibold" style={{ fontSize: 11, color: b.escalatedAlertsCount > 0 ? 'var(--danger)' : 'var(--text-muted)' }}>
                       {b.escalatedAlertsCount > 0 ? `⚠ ${b.escalatedAlertsCount}` : '—'}
                     </td>
                     <td className="px-4 py-2.5" style={{ width: 120 }}>
-                      <div className="rounded-full overflow-hidden" style={{ height: 5, background: '#F6F5FF' }}>
+                      <div className="rounded-full overflow-hidden" style={{ height: 5, background: 'var(--bg-subtle)' }}>
                         <div
                           className="rounded-full h-full transition-all"
-                          style={{ width: `${pct}%`, background: b.escalatedAlertsCount > 0 ? '#D84040' : '#5B4FE9' }}
+                          style={{ width: `${pct}%`, background: b.escalatedAlertsCount > 0 ? 'var(--danger)' : 'var(--brand)' }}
                         />
                       </div>
                     </td>

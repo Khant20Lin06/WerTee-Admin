@@ -2,11 +2,14 @@
 
 import { useState, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { Eye, EyeOff, Building2, ShoppingBag, Bike, Users, AlertCircle, Phone } from 'lucide-react';
+import {
+  Eye, EyeOff, Building2,
+  AlertCircle, Phone, ArrowRight, Shield,
+  CheckCircle2, Clock, TrendingUp,
+} from 'lucide-react';
 import { apiPost, setToken } from '@/lib/api/client';
 import { ep } from '@/lib/api/endpoints';
 
-// apiClient auto-unwraps the { success, data, meta } envelope
 type LoginResp = {
   accessToken: string;
   refreshToken: string;
@@ -15,27 +18,35 @@ type LoginResp = {
   actorContext: { role: string; userId: string; phone: string };
 };
 
-const STATS = [
-  { icon: ShoppingBag, label: 'Orders today',     value: '1,284' },
-  { icon: Bike,        label: 'Active riders',    value: '87' },
-  { icon: Users,       label: 'Registered users', value: '3,240' },
+const FEED = [
+  { dot: '#4ADE80', label: 'Order #ORD-9075',   meta: 'Delivered · 2m ago'    },
+  { dot: '#60A5FA', label: 'Rider assigned',     meta: 'Ko Mg Mg · 5m ago'    },
+  { dot: '#FACC15', label: 'New merchant',        meta: 'Pending review · 8m'  },
+  { dot: '#4ADE80', label: 'Order #ORD-9074',   meta: 'Completed · 11m ago'   },
+  { dot: '#F87171', label: 'Order cancelled',    meta: 'Refund initiated · 14m'},
 ];
 
 export default function LoginPage() {
   const router = useRouter();
-  const [phone, setPhone]       = useState('');
-  const [password, setPassword] = useState('');
-  const [showPw, setShowPw]     = useState(false);
-  const [loading, setLoading]   = useState(false);
-  const [error, setError]       = useState('');
+  const [phone, setPhone]         = useState('');
+  const [password, setPassword]   = useState('');
+  const [showPw, setShowPw]       = useState(false);
+  const [loading, setLoading]     = useState(false);
+  const [error, setError]         = useState('');
+  const [phoneFocus, setPhoneFocus]   = useState(false);
+  const [passFocus, setPassFocus]     = useState(false);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!phone || !password) { setError('Phone number and password are required.'); return; }
+    const phoneTrimmed = phone.trim();
+    const pwTrimmed    = password.trim();
+    if (!phoneTrimmed || !pwTrimmed) { setError('Phone number and password are required.'); return; }
+    if (phoneTrimmed.length < 6 || phoneTrimmed.length > 20) { setError('Enter a valid phone number.'); return; }
+    if (pwTrimmed.length < 6) { setError('Password must be at least 6 characters.'); return; }
     setError('');
     setLoading(true);
     try {
-      const res = await apiPost<LoginResp>(ep.login, { phone, password }, { 'X-App-Client': 'admin' });
+      const res = await apiPost<LoginResp>(ep.login, { phone: phoneTrimmed, password: pwTrimmed }, { 'X-App-Client': 'admin' });
       if (res.actorContext.role !== 'ADMIN') {
         setError('Access denied. This portal is for admin accounts only.');
         return;
@@ -53,177 +64,269 @@ export default function LoginPage() {
   const hasError = Boolean(error);
 
   return (
-    <div className="min-h-screen flex" style={{ background: '#F0EFFB' }}>
+    <div className="min-h-screen flex" style={{ background: 'var(--bg-page)' }}>
+
       {/* Left panel — branding */}
-      <div className="hidden lg:flex flex-col justify-between p-10 flex-shrink-0"
-        style={{ width: 420, background: '#5B4FE9' }}>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center justify-center rounded-xl"
-            style={{ width: 40, height: 40, background: 'rgba(255,255,255,0.18)' }}>
+      <div
+        className="hidden lg:flex flex-col justify-between p-10 flex-shrink-0 relative overflow-hidden"
+        style={{ width: 440, background: 'linear-gradient(145deg, #4F3FD4 0%, #6B5FE9 50%, #8B72F8 100%)' }}
+      >
+        {/* Decorative blobs */}
+        <div style={{ position: 'absolute', width: 320, height: 320, borderRadius: '50%', background: 'rgba(255,255,255,0.06)', top: -80, right: -80, pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', width: 200, height: 200, borderRadius: '50%', background: 'rgba(255,255,255,0.05)', bottom: 120, left: -60, pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', width: 120, height: 120, borderRadius: '50%', background: 'rgba(255,255,255,0.07)', bottom: -30, right: 40, pointerEvents: 'none' }} />
+
+        {/* Logo */}
+        <div className="flex items-center gap-3 relative">
+          <div className="flex items-center justify-center rounded-2xl"
+            style={{ width: 44, height: 44, background: 'rgba(255,255,255,0.18)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.25)' }}>
             <Building2 size={22} color="#fff" />
           </div>
           <div>
-            <div className="font-extrabold" style={{ fontSize: 18, color: '#fff' }}>WerTe</div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>Admin panel</div>
+            <div className="font-extrabold tracking-tight" style={{ fontSize: 18, color: '#fff' }}>WerTe</div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', letterSpacing: '0.04em' }}>Admin Panel</div>
           </div>
         </div>
 
-        <div>
-          <div className="font-extrabold mb-3" style={{ fontSize: 28, color: '#fff', lineHeight: 1.25 }}>
-            Manage your<br />delivery platform<br />from one place.
+        {/* Headline */}
+        <div className="relative">
+          <div className="font-extrabold mb-4 tracking-tight" style={{ fontSize: 30, color: '#fff', lineHeight: 1.2 }}>
+            Manage your<br />
+            delivery platform<br />
+            <span style={{ color: 'rgba(255,255,255,0.65)' }}>from one place.</span>
           </div>
-          <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.65)', lineHeight: 1.6 }}>
-            Real-time orders, merchant approvals,<br />
-            rider management, and full analytics<br />
-            — all in a single dashboard.
-          </div>
-        </div>
 
-        <div className="space-y-3">
-          {STATS.map(s => (
-            <div key={s.label} className="flex items-center gap-3 rounded-xl px-4 py-3"
-              style={{ background: 'rgba(255,255,255,0.1)' }}>
-              <div className="rounded-lg flex items-center justify-center flex-shrink-0"
-                style={{ width: 32, height: 32, background: 'rgba(255,255,255,0.15)' }}>
-                <s.icon size={15} color="#fff" />
+          {/* Live activity feed */}
+          <div className="rounded-2xl overflow-hidden"
+            style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.09)', backdropFilter: 'blur(14px)' }}>
+            <div className="flex items-center justify-between px-4 py-2.5"
+              style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+              <div className="flex items-center gap-2">
+                <div className="rounded-full"
+                  style={{ width: 6, height: 6, background: '#4ADE80', boxShadow: '0 0 6px #4ADE80', animation: 'pulse 2s infinite' }} />
+                <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.5)', letterSpacing: '0.06em' }}>
+                  LIVE ACTIVITY
+                </span>
               </div>
-              <div>
-                <div className="font-extrabold" style={{ fontSize: 16, color: '#fff' }}>{s.value}</div>
-                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.55)' }}>{s.label}</div>
+              <div className="flex items-center gap-1">
+                <Clock size={9} color="rgba(255,255,255,0.3)" />
+                <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)' }}>just now</span>
               </div>
             </div>
-          ))}
+
+            {FEED.map((f, i) => (
+              <div key={i} className="flex items-center gap-3 px-4 py-2.5"
+                style={{ borderTop: i > 0 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
+                <div className="rounded-full flex-shrink-0"
+                  style={{ width: 7, height: 7, background: f.dot, boxShadow: `0 0 5px ${f.dot}88` }} />
+                <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.75)', flex: 1 }}>{f.label}</span>
+                <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', whiteSpace: 'nowrap' }}>{f.meta}</span>
+              </div>
+            ))}
+
+            <div className="flex items-center justify-between px-4 py-2"
+              style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+              <div className="flex items-center gap-1.5">
+                <CheckCircle2 size={10} color="#4ADE80" />
+                <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.35)' }}>All systems operational</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <TrendingUp size={9} color="rgba(255,255,255,0.3)" />
+                <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)' }}>+12% today</span>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)' }}>
+        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.04em' }} className="relative">
           © 2026 WerTe · Yangon, Myanmar
         </div>
       </div>
 
       {/* Right panel — form */}
-      <div className="flex-1 flex items-center justify-center px-6 py-12">
-        <div className="w-full" style={{ maxWidth: 380 }}>
+      <div className="flex-1 flex items-center justify-center px-6 py-12 relative">
+
+        {/* Subtle grid pattern */}
+        <div style={{
+          position: 'absolute', inset: 0, pointerEvents: 'none',
+          backgroundImage: 'radial-gradient(circle, var(--brand)12 1px, transparent 1px)',
+          backgroundSize: '28px 28px',
+        }} />
+
+        <div className="w-full relative" style={{ maxWidth: 400 }}>
+
           {/* Mobile logo */}
           <div className="flex items-center gap-2 mb-8 lg:hidden">
-            <div className="flex items-center justify-center rounded-lg"
-              style={{ width: 34, height: 34, background: '#5B4FE9' }}>
+            <div className="flex items-center justify-center rounded-xl"
+              style={{ width: 36, height: 36, background: 'var(--brand)' }}>
               <Building2 size={18} color="#fff" />
             </div>
-            <span className="font-extrabold" style={{ fontSize: 16, color: '#1A1730' }}>WerTe Admin</span>
+            <span className="font-extrabold tracking-tight" style={{ fontSize: 16, color: 'var(--text-primary)' }}>WerTe Admin</span>
           </div>
 
-          <div className="mb-7">
-            <div className="font-extrabold mb-1" style={{ fontSize: 22, color: '#1A1730' }}>Welcome back</div>
-            <div style={{ fontSize: 13, color: '#8A88A8' }}>Sign in to your admin account</div>
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Phone */}
-            <div>
-              <label className="block mb-1.5 font-semibold" style={{ fontSize: 11, color: '#4A4770' }}>
-                Phone number
-              </label>
-              <div className="relative">
-                <Phone size={13} style={{ color: '#8A88A8', position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }} />
-                <input
-                  type="tel"
-                  placeholder="+959000000001"
-                  autoComplete="tel"
-                  value={phone}
-                  onChange={e => { setPhone(e.target.value); setError(''); }}
-                  className="w-full rounded-xl py-2.5 outline-none transition-all"
-                  style={{
-                    paddingLeft: 32,
-                    paddingRight: 14,
-                    fontSize: 13,
-                    background: '#fff',
-                    border: `1.5px solid ${hasError ? '#D84040' : '#E8E6F8'}`,
-                    color: '#1A1730',
-                  }}
-                />
+          {/* Card */}
+          <div className="rounded-3xl p-8" style={{
+            background: 'var(--bg-card)',
+            boxShadow: 'var(--shadow-lg)',
+            border: '1px solid var(--brand-border)',
+          }}>
+            {/* Header */}
+            <div className="mb-7">
+              <div className="inline-flex items-center gap-2 rounded-full px-3 py-1 mb-4"
+                style={{ background: 'var(--brand-muted)', border: '1px solid var(--brand-border)' }}>
+                <div className="w-1.5 h-1.5 rounded-full" style={{ background: 'var(--brand)' }} />
+                <span style={{ fontSize: 10, color: 'var(--brand)', fontWeight: 700, letterSpacing: '0.06em' }}>
+                  SECURE LOGIN
+                </span>
               </div>
+              <div className="font-extrabold tracking-tight mb-1" style={{ fontSize: 24, color: 'var(--text-primary)' }}>
+                Welcome back
+              </div>
+              <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Sign in to your admin account</div>
             </div>
 
-            {/* Password */}
-            <div>
-              <label className="block mb-1.5 font-semibold" style={{ fontSize: 11, color: '#4A4770' }}>
-                Password
-              </label>
-              <div className="relative">
-                <input
-                  type={showPw ? 'text' : 'password'}
-                  placeholder="••••••••"
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={e => { setPassword(e.target.value); setError(''); }}
-                  className="w-full rounded-xl px-3.5 py-2.5 outline-none transition-all"
-                  style={{
-                    paddingRight: 40,
-                    fontSize: 13,
-                    background: '#fff',
-                    border: `1.5px solid ${hasError ? '#D84040' : '#E8E6F8'}`,
-                    color: '#1A1730',
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPw(v => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2"
-                  tabIndex={-1}
-                >
-                  {showPw
-                    ? <EyeOff size={15} style={{ color: '#8A88A8' }} />
-                    : <Eye    size={15} style={{ color: '#8A88A8' }} />}
-                </button>
-              </div>
-            </div>
+            <form onSubmit={handleSubmit} className="space-y-4">
 
-            {/* Error */}
-            {hasError && (
-              <div className="flex items-center gap-2 rounded-xl px-3.5 py-2.5"
-                style={{ background: '#FFF0F0', border: '1px solid #FFD0D0' }}>
-                <AlertCircle size={13} style={{ color: '#D84040', flexShrink: 0 }} />
-                <span style={{ fontSize: 11, color: '#D84040' }}>{error}</span>
+              {/* Phone */}
+              <div>
+                <label className="block mb-1.5 font-semibold" style={{ fontSize: 11, color: 'var(--text-secondary)', letterSpacing: '0.04em' }}>
+                  PHONE NUMBER
+                </label>
+                <div className="relative">
+                  <Phone size={13} style={{
+                    color: phoneFocus ? 'var(--brand)' : 'var(--text-faint)',
+                    position: 'absolute', left: 14, top: '50%',
+                    transform: 'translateY(-50%)', transition: 'color 0.2s',
+                  }} />
+                  <input
+                    type="tel"
+                    placeholder="+959000000001"
+                    autoComplete="tel"
+                    value={phone}
+                    onChange={e => { setPhone(e.target.value); setError(''); }}
+                    onFocus={() => setPhoneFocus(true)}
+                    onBlur={() => setPhoneFocus(false)}
+                    style={{
+                      width: '100%',
+                      paddingLeft: 36, paddingRight: 14, paddingTop: 11, paddingBottom: 11,
+                      fontSize: 13,
+                      background: phoneFocus ? 'var(--bg-card)' : 'var(--bg-subtle)',
+                      border: `1.5px solid ${hasError ? 'var(--danger)' : phoneFocus ? 'var(--brand)' : 'var(--border)'}`,
+                      borderRadius: 12,
+                      color: 'var(--text-primary)',
+                      outline: 'none',
+                      transition: 'all 0.2s',
+                      boxShadow: phoneFocus ? '0 0 0 3px rgba(91,79,233,0.1)' : 'none',
+                    }}
+                  />
+                </div>
               </div>
-            )}
 
-            {/* Submit */}
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full rounded-xl py-2.5 font-bold flex items-center justify-center gap-2"
-              style={{
-                fontSize: 13,
-                background: '#5B4FE9',
-                color: '#fff',
-                opacity: loading ? 0.7 : 1,
-                marginTop: 8,
-                cursor: loading ? 'not-allowed' : 'pointer',
-              }}
-            >
-              {loading && (
-                <svg className="animate-spin" width={16} height={16} viewBox="0 0 24 24" fill="none">
-                  <circle cx="12" cy="12" r="10" stroke="#ffffff44" strokeWidth="3" />
-                  <path d="M12 2a10 10 0 0 1 10 10" stroke="#fff" strokeWidth="3" strokeLinecap="round" />
-                </svg>
+              {/* Password */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="font-semibold" style={{ fontSize: 11, color: 'var(--text-secondary)', letterSpacing: '0.04em' }}>
+                    PASSWORD
+                  </label>
+                </div>
+                <div className="relative">
+                  <input
+                    type={showPw ? 'text' : 'password'}
+                    placeholder="••••••••"
+                    autoComplete="current-password"
+                    value={password}
+                    onChange={e => { setPassword(e.target.value); setError(''); }}
+                    onFocus={() => setPassFocus(true)}
+                    onBlur={() => setPassFocus(false)}
+                    style={{
+                      width: '100%',
+                      paddingLeft: 14, paddingRight: 44, paddingTop: 11, paddingBottom: 11,
+                      fontSize: 13,
+                      background: passFocus ? 'var(--bg-card)' : 'var(--bg-subtle)',
+                      border: `1.5px solid ${hasError ? 'var(--danger)' : passFocus ? 'var(--brand)' : 'var(--border)'}`,
+                      borderRadius: 12,
+                      color: 'var(--text-primary)',
+                      outline: 'none',
+                      transition: 'all 0.2s',
+                      boxShadow: passFocus ? '0 0 0 3px rgba(91,79,233,0.1)' : 'none',
+                    }}
+                  />
+                  <button type="button" onClick={() => setShowPw(v => !v)} tabIndex={-1}
+                    style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}>
+                    {showPw
+                      ? <EyeOff size={15} style={{ color: 'var(--text-muted)' }} />
+                      : <Eye    size={15} style={{ color: 'var(--text-muted)' }} />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Error */}
+              {hasError && (
+                <div className="flex items-start gap-2.5 rounded-xl px-3.5 py-3"
+                  style={{ background: 'var(--danger-bg)', border: '1px solid #FED7D7', animation: 'fadeIn 0.2s ease' }}>
+                  <AlertCircle size={13} style={{ color: 'var(--danger)', flexShrink: 0, marginTop: 1 }} />
+                  <span style={{ fontSize: 12, color: 'var(--danger)', lineHeight: 1.5 }}>{error}</span>
+                </div>
               )}
-              {loading ? 'Signing in…' : 'Sign in'}
-            </button>
-          </form>
 
-          <div className="mt-6 rounded-xl px-4 py-3" style={{ background: '#EEF0FF', border: '1px solid #C8C4F8' }}>
-            <div className="font-semibold mb-0.5" style={{ fontSize: 11, color: '#5B4FE9' }}>Admin access only</div>
-            <div style={{ fontSize: 10, color: '#8A88A8', lineHeight: 1.6 }}>
-              This portal is restricted to authorized WerTe administrators.
-              Contact your super admin if you need access.
+              {/* Submit */}
+              <button type="submit" disabled={loading} style={{
+                width: '100%',
+                paddingTop: 12, paddingBottom: 12, marginTop: 8,
+                borderRadius: 12, fontSize: 13, fontWeight: 700,
+                background: loading ? '#8C82EE' : 'linear-gradient(135deg, var(--brand) 0%, #7B6EF8 100%)',
+                color: '#fff', border: 'none',
+                cursor: loading ? 'not-allowed' : 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                boxShadow: loading ? 'none' : '0 4px 14px rgba(91,79,233,0.4)',
+                transition: 'all 0.2s',
+                letterSpacing: '0.02em',
+              }}>
+                {loading ? (
+                  <>
+                    <svg className="animate-spin" width={16} height={16} viewBox="0 0 24 24" fill="none">
+                      <circle cx="12" cy="12" r="10" stroke="rgba(255,255,255,0.3)" strokeWidth="3" />
+                      <path d="M12 2a10 10 0 0 1 10 10" stroke="#fff" strokeWidth="3" strokeLinecap="round" />
+                    </svg>
+                    Signing in…
+                  </>
+                ) : (
+                  <>Sign in <ArrowRight size={14} /></>
+                )}
+              </button>
+            </form>
+
+            {/* Divider */}
+            <div className="my-5" style={{ height: 1, background: 'var(--border)' }} />
+
+            {/* Admin notice */}
+            <div className="flex items-start gap-3 rounded-xl px-3.5 py-3"
+              style={{ background: 'var(--brand-muted)', border: '1px solid var(--brand-border)' }}>
+              <Shield size={13} style={{ color: 'var(--brand)', flexShrink: 0, marginTop: 1 }} />
+              <div>
+                <div className="font-semibold mb-0.5" style={{ fontSize: 11, color: 'var(--brand-hover)' }}>
+                  Admin access only
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.6 }}>
+                  This portal is restricted to authorized WerTe administrators.
+                  Contact your super admin if you need access.
+                </div>
+              </div>
             </div>
           </div>
 
-          <div className="mt-6 text-center" style={{ fontSize: 10, color: '#8A88A8' }}>
+          {/* Footer */}
+          <div className="mt-5 text-center" style={{ fontSize: 11, color: 'var(--text-faint)' }}>
             © 2026 WerTe · Yangon, Myanmar
           </div>
         </div>
       </div>
+
+      <style>{`
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+        input::placeholder { color: var(--text-faint); }
+      `}</style>
     </div>
   );
 }

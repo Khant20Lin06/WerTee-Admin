@@ -1,40 +1,14 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Search, Eye, X, ShoppingBag, CreditCard, AlertTriangle, CheckCircle } from 'lucide-react';
 import { apiGet, apiPatch } from '@/lib/api/client';
 import { ep } from '@/lib/api/endpoints';
 import { Spinner } from '@/components/ui/spinner';
 import { StatusBadge } from '@/components/ui/status-badge';
-
-// Matches backend CustomerProfileDto exactly
-type Customer = {
-  id: string;
-  phone: string;
-  fullName: string | null;
-  avatarUrl: string | null;
-  status: string;
-  createdAt: string;
-  updatedAt: string;
-};
-
-type CustomerOrder = {
-  orderId: string;
-  orderCode: string;
-  status: string;
-  totalAmount: string;
-  placedAt: string;
-  branch: { merchantName: string; branchName: string };
-};
-
-function initials(name: string | null, phone: string): string {
-  if (name) return name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase();
-  return phone.slice(-2).toUpperCase();
-}
-
-function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-}
+import { PaginationBar } from '@/components/ui/pagination-bar';
+import type { Customer, CustomerOrder } from '@/types/models';
+import { initials, fmtDate } from '@/lib/utils/formatters';
 
 function CustomerPanel({ c, onClose, onStatusChange }: {
   c: Customer;
@@ -47,7 +21,6 @@ function CustomerPanel({ c, onClose, onStatusChange }: {
 
   useEffect(() => {
     setOrdersLoading(true);
-    // Fetch all orders and filter by customer phone (no direct customerProfileId filter on admin orders endpoint)
     apiGet<CustomerOrder[]>(ep.orders)
       .then(data => {
         setOrders(Array.isArray(data) ? data : []);
@@ -72,26 +45,26 @@ function CustomerPanel({ c, onClose, onStatusChange }: {
 
   return (
     <div className="fixed inset-y-0 right-0 z-50 flex flex-col"
-      style={{ width: 420, background: '#fff', borderLeft: '1px solid #E8E6F8', boxShadow: '-8px 0 32px rgba(91,79,233,0.1)' }}>
-      <div className="flex items-center justify-between px-5 py-3.5 border-b" style={{ borderColor: '#E8E6F8' }}>
-        <span className="font-extrabold" style={{ fontSize: 14, color: '#1A1730' }}>Customer profile</span>
-        <button onClick={onClose}><X size={15} style={{ color: '#8A88A8' }} /></button>
+      style={{ width: 420, background: 'var(--bg-card)', borderLeft: '1px solid var(--border)', boxShadow: 'var(--shadow-lg)' }}>
+      <div className="flex items-center justify-between px-5 py-3.5 border-b" style={{ borderColor: 'var(--border)' }}>
+        <span className="font-extrabold" style={{ fontSize: 14, color: 'var(--text-primary)' }}>Customer profile</span>
+        <button onClick={onClose}><X size={15} style={{ color: 'var(--text-muted)' }} /></button>
       </div>
       <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
         {/* Profile */}
         <div className="flex items-center gap-3">
           <div className="rounded-full flex items-center justify-center font-extrabold flex-shrink-0"
-            style={{ width: 48, height: 48, background: '#EEF0FF', color: '#5B4FE9', fontSize: 16 }}>
+            style={{ width: 48, height: 48, background: 'var(--brand-muted)', color: 'var(--brand)', fontSize: 16 }}>
             {initials(c.fullName, c.phone)}
           </div>
           <div>
-            <div className="font-extrabold" style={{ fontSize: 16, color: '#1A1730' }}>
+            <div className="font-extrabold" style={{ fontSize: 16, color: 'var(--text-primary)' }}>
               {c.fullName ?? c.phone}
             </div>
-            <div style={{ fontSize: 12, color: '#8A88A8' }}>{c.phone}</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{c.phone}</div>
             <div className="flex items-center gap-2 mt-1">
               <StatusBadge status={c.status} />
-              <span style={{ fontSize: 11, color: '#8A88A8' }}>Joined {fmtDate(c.createdAt)}</span>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Joined {fmtDate(c.createdAt)}</span>
             </div>
           </div>
         </div>
@@ -99,14 +72,14 @@ function CustomerPanel({ c, onClose, onStatusChange }: {
         {/* Stats */}
         <div className="grid grid-cols-2 gap-2">
           {[
-            { icon: ShoppingBag, label: 'Total orders',  val: ordersLoading ? '…' : orders.length, color: '#5B4FE9' },
-            { icon: CreditCard,  label: 'Total spend',   val: ordersLoading ? '…' : `${(totalSpend / 1000).toFixed(0)}K MMK`, color: '#16A660' },
+            { icon: ShoppingBag, label: 'Total orders', val: ordersLoading ? '…' : orders.length, color: 'var(--brand)' },
+            { icon: CreditCard,  label: 'Total spend',  val: ordersLoading ? '…' : `${(totalSpend / 1000).toFixed(0)}K MMK`, color: 'var(--success)' },
           ].map(s => (
-            <div key={s.label} className="rounded-card p-3 flex items-center gap-2" style={{ background: '#F6F5FF' }}>
+            <div key={s.label} className="rounded-card p-3 flex items-center gap-2" style={{ background: 'var(--bg-subtle)' }}>
               <s.icon size={16} style={{ color: s.color }} />
               <div>
-                <div className="font-extrabold" style={{ fontSize: 15, color: '#1A1730' }}>{s.val}</div>
-                <div style={{ fontSize: 10, color: '#8A88A8' }}>{s.label}</div>
+                <div className="font-extrabold" style={{ fontSize: 15, color: 'var(--text-primary)' }}>{s.val}</div>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{s.label}</div>
               </div>
             </div>
           ))}
@@ -114,17 +87,17 @@ function CustomerPanel({ c, onClose, onStatusChange }: {
 
         {/* Order history */}
         <div>
-          <div className="font-bold mb-2" style={{ fontSize: 12, color: '#1A1730' }}>Recent orders</div>
+          <div className="font-bold mb-2" style={{ fontSize: 12, color: 'var(--text-primary)' }}>Recent orders</div>
           {ordersLoading ? (
             <div className="flex justify-center py-3"><Spinner /></div>
           ) : orders.length === 0 ? (
-            <div style={{ fontSize: 11, color: '#8A88A8', textAlign: 'center', padding: '12px 0' }}>No orders yet</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', padding: '12px 0' }}>No orders yet</div>
           ) : (
             orders.slice(0, 8).map((o) => (
-              <div key={o.orderId} className="flex items-center justify-between py-2" style={{ borderTop: '1px solid #E8E6F8' }}>
+              <div key={o.orderId} className="flex items-center justify-between py-2" style={{ borderTop: '1px solid var(--border)' }}>
                 <div>
-                  <div className="font-semibold" style={{ fontSize: 11, color: '#5B4FE9' }}>#{o.orderCode}</div>
-                  <div style={{ fontSize: 10, color: '#8A88A8' }}>
+                  <div className="font-semibold" style={{ fontSize: 11, color: 'var(--brand)' }}>#{o.orderCode}</div>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
                     {o.branch.merchantName} · {fmtDate(o.placedAt)}
                   </div>
                 </div>
@@ -139,14 +112,14 @@ function CustomerPanel({ c, onClose, onStatusChange }: {
           )}
         </div>
       </div>
-      <div className="px-5 py-3.5 border-t" style={{ borderColor: '#E8E6F8' }}>
+      <div className="px-5 py-3.5 border-t" style={{ borderColor: 'var(--border)' }}>
         <button
           onClick={handleToggleStatus}
           disabled={suspending}
           className="w-full rounded-card py-2 font-semibold flex items-center justify-center gap-2"
           style={{
-            border: `1px solid ${c.status === 'ACTIVE' ? '#D84040' : '#16A660'}`,
-            color: c.status === 'ACTIVE' ? '#D84040' : '#16A660',
+            border: `1px solid ${c.status === 'ACTIVE' ? 'var(--danger)' : 'var(--success)'}`,
+            color: c.status === 'ACTIVE' ? 'var(--danger)' : 'var(--success)',
             fontSize: 12,
             background: 'transparent',
             opacity: suspending ? 0.6 : 1,
@@ -169,6 +142,8 @@ export default function CustomersPage() {
   const [search, setSearch]       = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [page, setPage]         = useState(1);
+  const [pageSize, setPageSize] = useState(20);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -189,14 +164,21 @@ export default function CustomersPage() {
     setCustomers(prev => prev.map(c => c.id === id ? { ...c, status } : c));
   }
 
-  const filtered = customers.filter(c => {
+  const filtered = useMemo(() => customers.filter(c => {
     if (statusFilter !== 'all' && c.status !== statusFilter) return false;
     if (search) {
       const q = search.toLowerCase();
       if (!(c.phone.includes(q) || (c.fullName ?? '').toLowerCase().includes(q))) return false;
     }
     return true;
-  });
+  }), [customers, statusFilter, search]);
+
+  const total      = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const safePage   = Math.min(page, totalPages);
+  const from       = total === 0 ? 0 : (safePage - 1) * pageSize + 1;
+  const to         = Math.min(safePage * pageSize, total);
+  const pageRows   = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
 
   const selected = customers.find(c => c.id === selectedId) ?? null;
 
@@ -208,9 +190,9 @@ export default function CustomersPage() {
       {/* Summary chips */}
       <div className="flex gap-2">
         {[
-          { label: 'Total',     count: customers.length, color: '#5B4FE9', bg: '#EEF0FF' },
-          { label: 'Active',    count: activeCount,      color: '#16A660', bg: '#E8FAF2' },
-          { label: 'Pending',   count: pendingCount,     color: '#D4820A', bg: '#FFF8E8' },
+          { label: 'Total',   count: customers.length, color: 'var(--brand)',   bg: 'var(--brand-muted)' },
+          { label: 'Active',  count: activeCount,      color: 'var(--success)', bg: 'var(--success-bg)' },
+          { label: 'Pending', count: pendingCount,     color: 'var(--warning)', bg: 'var(--warning-bg)' },
         ].map(c => (
           <span key={c.label} className="rounded-pill px-3 py-1 font-bold" style={{ fontSize: 11, background: c.bg, color: c.color, border: `1px solid ${c.color}30` }}>
             {c.label} <span className="ml-1">{loading ? '…' : c.count.toLocaleString()}</span>
@@ -219,14 +201,14 @@ export default function CustomersPage() {
       </div>
 
       {/* Filter bar */}
-      <div className="flex items-center gap-2 rounded-card px-3 py-2" style={{ background: '#fff', border: '1px solid #E8E6F8' }}>
-        <div className="flex items-center gap-1.5 flex-1 rounded-lg px-2.5 py-1.5" style={{ background: '#F6F5FF', border: '1px solid #E8E6F8' }}>
-          <Search size={12} style={{ color: '#8A88A8' }} />
+      <div className="flex items-center gap-2 rounded-card px-3 py-2" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+        <div className="flex items-center gap-1.5 flex-1 rounded-lg px-2.5 py-1.5" style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)' }}>
+          <Search size={12} style={{ color: 'var(--text-muted)' }} />
           <input placeholder="Search by name or phone…" className="bg-transparent outline-none flex-1" style={{ fontSize: 11 }}
-            value={search} onChange={e => setSearch(e.target.value)} />
+            value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} />
         </div>
-        <select className="rounded-lg px-2 py-1.5 outline-none" style={{ fontSize: 11, background: '#F6F5FF', border: '1px solid #E8E6F8', color: '#4A4770' }}
-          value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+        <select className="rounded-lg px-2 py-1.5 outline-none" style={{ fontSize: 11, background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
+          value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }}>
           <option value="all">All statuses</option>
           <option value="ACTIVE">Active</option>
           <option value="SUSPENDED">Suspended</option>
@@ -238,58 +220,64 @@ export default function CustomersPage() {
       {loading && <div className="flex justify-center py-12"><Spinner /></div>}
 
       {!loading && error && (
-        <div className="rounded-card px-4 py-3 text-center" style={{ background: '#FFF0F0', border: '1px solid #FFD0D0' }}>
-          <div style={{ fontSize: 12, color: '#D84040' }}>{error}</div>
-          <button onClick={load} className="mt-2 font-semibold" style={{ fontSize: 11, color: '#5B4FE9' }}>Retry</button>
+        <div className="rounded-card px-4 py-3 text-center" style={{ background: 'var(--danger-bg)', border: '1px solid #FFD0D0' }}>
+          <div style={{ fontSize: 12, color: 'var(--danger)' }}>{error}</div>
+          <button onClick={load} className="mt-2 font-semibold" style={{ fontSize: 11, color: 'var(--brand)' }}>Retry</button>
         </div>
       )}
 
       {!loading && !error && (
-        <div className="rounded-card overflow-hidden" style={{ background: '#fff', border: '1px solid #E8E6F8' }}>
-          {filtered.length === 0 ? (
-            <div className="px-4 py-10 text-center" style={{ fontSize: 13, color: '#8A88A8' }}>No customers found</div>
+        <div className="rounded-card overflow-hidden" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+          {pageRows.length === 0 ? (
+            <div className="px-4 py-10 text-center" style={{ fontSize: 13, color: 'var(--text-muted)' }}>No customers found</div>
           ) : (
             <table className="w-full">
               <thead>
-                <tr style={{ background: '#F6F5FF' }}>
+                <tr style={{ background: 'var(--bg-subtle)' }}>
                   {['Name / Phone', 'Status', 'Joined', ''].map(h => (
-                    <th key={h} className="px-3 py-2.5 text-left font-semibold uppercase tracking-wider" style={{ fontSize: 9, color: '#8A88A8' }}>{h}</th>
+                    <th key={h} className="px-3 py-2.5 text-left font-semibold uppercase tracking-wider" style={{ fontSize: 9, color: 'var(--text-muted)' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((c, i) => (
-                  <tr key={c.id} style={{ borderTop: '1px solid #E8E6F8', background: i % 2 === 1 ? '#FAFAFA' : '#fff' }}>
+                {pageRows.map((c, i) => (
+                  <tr key={c.id} style={{ borderTop: '1px solid var(--border)', background: i % 2 === 1 ? 'var(--bg-subtle)' : 'var(--bg-card)' }}>
                     <td className="px-3 py-2.5">
                       <div className="flex items-center gap-2">
                         <div className="rounded-full flex items-center justify-center font-bold flex-shrink-0"
-                          style={{ width: 28, height: 28, background: '#EEF0FF', color: '#5B4FE9', fontSize: 10 }}>
+                          style={{ width: 28, height: 28, background: 'var(--brand-muted)', color: 'var(--brand)', fontSize: 10 }}>
                           {initials(c.fullName, c.phone)}
                         </div>
                         <div>
-                          <div className="font-semibold" style={{ fontSize: 11, color: '#1A1730' }}>
+                          <div className="font-semibold" style={{ fontSize: 11, color: 'var(--text-primary)' }}>
                             {c.fullName ?? '—'}
                           </div>
-                          <div style={{ fontSize: 10, color: '#8A88A8' }}>{c.phone}</div>
+                          <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{c.phone}</div>
                         </div>
                       </div>
                     </td>
                     <td className="px-3 py-2.5"><StatusBadge status={c.status} /></td>
-                    <td className="px-3 py-2.5" style={{ fontSize: 11, color: '#4A4770' }}>{fmtDate(c.createdAt)}</td>
+                    <td className="px-3 py-2.5" style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{fmtDate(c.createdAt)}</td>
                     <td className="px-3 py-2.5">
-                      <button onClick={() => setSelectedId(c.id)}><Eye size={13} style={{ color: '#5B4FE9' }} /></button>
+                      <button onClick={() => setSelectedId(c.id)}><Eye size={13} style={{ color: 'var(--brand)' }} /></button>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           )}
+          <PaginationBar
+            page={safePage} totalPages={totalPages} total={total}
+            pageSize={pageSize} from={from} to={to}
+            onPage={setPage}
+            onPageSize={(v) => { setPageSize(v); setPage(1); }}
+          />
         </div>
       )}
 
       {selected && (
         <>
-          <div className="fixed inset-0 z-40" style={{ background: 'rgba(26,23,48,0.25)' }} onClick={() => setSelectedId(null)} />
+          <div className="fixed inset-0 z-40" style={{ background: 'rgba(21,18,43,0.28)' }} onClick={() => setSelectedId(null)} />
           <CustomerPanel
             c={selected}
             onClose={() => setSelectedId(null)}

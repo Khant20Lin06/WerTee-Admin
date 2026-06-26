@@ -8,6 +8,7 @@ import {
 import { apiGet, apiPost, apiPatch } from '@/lib/api/client';
 import { ep } from '@/lib/api/endpoints';
 import { Spinner } from '@/components/ui/spinner';
+import { PaginationBar } from '@/components/ui/pagination-bar';
 
 // Matches backend AdminPromotionDto exactly
 type Promotion = {
@@ -41,14 +42,14 @@ function deriveStatus(p: Promotion): 'ACTIVE' | 'EXPIRED' | 'SCHEDULED' | 'INACT
 }
 
 const STATUS_STYLE: Record<string, { bg: string; color: string; label: string }> = {
-  ACTIVE:    { bg: '#E8FAF2', color: '#16A660', label: 'Active' },
-  EXPIRED:   { bg: '#F6F5FF', color: '#8A88A8', label: 'Expired' },
-  SCHEDULED: { bg: '#EEF0FF', color: '#5B4FE9', label: 'Scheduled' },
-  INACTIVE:  { bg: '#FFF0F0', color: '#D84040', label: 'Inactive' },
+  ACTIVE:    { bg: 'var(--success-bg)',  color: 'var(--success)', label: 'Active' },
+  EXPIRED:   { bg: 'var(--bg-subtle)',   color: 'var(--text-muted)', label: 'Expired' },
+  SCHEDULED: { bg: 'var(--brand-muted)', color: 'var(--brand)', label: 'Scheduled' },
+  INACTIVE:  { bg: 'var(--danger-bg)',   color: 'var(--danger)', label: 'Inactive' },
 };
 
-const ICON_BG = ['#EEF0FF', '#E8FAF2', '#FFF8E8', '#F6F5FF', '#FFF0F0'];
-const ICON_FG = ['#5B4FE9', '#16A660', '#D4820A', '#8A88A8', '#D84040'];
+const ICON_BG = ['var(--brand-muted)', 'var(--success-bg)', 'var(--warning-bg)', 'var(--bg-subtle)', 'var(--danger-bg)'];
+const ICON_FG = ['var(--brand)', 'var(--success)', 'var(--warning)', 'var(--text-muted)', 'var(--danger)'];
 
 function fmtDate(iso: string | null) {
   if (!iso) return '—';
@@ -78,7 +79,7 @@ function PromoCard({
 
   return (
     <div className="rounded-card p-4 flex flex-col gap-3 relative"
-      style={{ background: '#fff', border: '1px solid #E8E6F8' }}>
+      style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
       {/* Header */}
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
@@ -87,16 +88,16 @@ function PromoCard({
             <Tag size={14} style={{ color: iconFg }} />
           </div>
           <div className="min-w-0">
-            <code className="font-mono font-extrabold block truncate" style={{ fontSize: 13, color: '#1A1730' }}>{p.code}</code>
-            <div className="truncate" style={{ fontSize: 10, color: '#8A88A8' }}>{p.name}</div>
+            <code className="font-mono font-extrabold block truncate" style={{ fontSize: 13, color: 'var(--text-primary)' }}>{p.code}</code>
+            <div className="truncate" style={{ fontSize: 10, color: 'var(--text-muted)' }}>{p.name}</div>
           </div>
         </div>
         <div className="flex items-center gap-1.5 flex-shrink-0">
           <span className="rounded-pill px-2 py-0.5 font-semibold"
             style={{ fontSize: 9, background: ss.bg, color: ss.color }}>{ss.label}</span>
           <button onClick={() => onEdit(p)} title="Edit"
-            className="rounded-lg p-1" style={{ background: '#F6F5FF' }}>
-            <Edit2 size={11} style={{ color: '#5B4FE9' }} />
+            className="rounded-lg p-1" style={{ background: 'var(--bg-subtle)' }}>
+            <Edit2 size={11} style={{ color: 'var(--brand)' }} />
           </button>
         </div>
       </div>
@@ -104,50 +105,50 @@ function PromoCard({
       {/* Discount + min order */}
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-1">
-          <Percent size={11} style={{ color: '#5B4FE9' }} />
-          <span className="font-extrabold" style={{ fontSize: 15, color: '#5B4FE9' }}>{fmtDiscount(p)}</span>
+          <Percent size={11} style={{ color: 'var(--brand)' }} />
+          <span className="font-extrabold" style={{ fontSize: 15, color: 'var(--brand)' }}>{fmtDiscount(p)}</span>
         </div>
-        <span style={{ fontSize: 10, color: '#8A88A8' }}>
+        <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
           off · min {Number(p.minimumSubtotalAmount).toLocaleString()} MMK
         </span>
       </div>
 
       {/* Branch / merchant */}
       {(p.merchantName || p.branchName) && (
-        <div style={{ fontSize: 10, color: '#8A88A8' }}>
+        <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
           {p.merchantName}{p.branchName ? ` — ${p.branchName}` : ''}
         </div>
       )}
 
-      {/* Usage bar — no usageLimit in schema so show count only */}
+      {/* Usage bar */}
       <div>
         <div className="flex justify-between mb-1">
-          <span style={{ fontSize: 10, color: '#8A88A8' }}>Redemptions</span>
-          <span className="font-semibold" style={{ fontSize: 10, color: '#4A4770' }}>{p.usageCount.toLocaleString()}</span>
+          <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Redemptions</span>
+          <span className="font-semibold" style={{ fontSize: 10, color: 'var(--text-secondary)' }}>{p.usageCount.toLocaleString()}</span>
         </div>
-        <div className="rounded-full overflow-hidden" style={{ height: 5, background: '#F6F5FF' }}>
+        <div className="rounded-full overflow-hidden" style={{ height: 5, background: 'var(--bg-subtle)' }}>
           <div className="rounded-full h-full"
-            style={{ width: p.usageCount > 0 ? '100%' : '0%', background: '#5B4FE9', opacity: 0.5 + Math.min(p.usageCount / 100, 0.5) }} />
+            style={{ width: p.usageCount > 0 ? '100%' : '0%', background: 'var(--brand)', opacity: 0.5 + Math.min(p.usageCount / 100, 0.5) }} />
         </div>
       </div>
 
       {/* Footer */}
-      <div className="flex items-center justify-between pt-1" style={{ borderTop: '1px solid #E8E6F8' }}>
+      <div className="flex items-center justify-between pt-1" style={{ borderTop: '1px solid var(--border)' }}>
         <div className="flex items-center gap-1">
-          <Calendar size={10} style={{ color: '#8A88A8' }} />
-          <span style={{ fontSize: 10, color: '#8A88A8' }}>
+          <Calendar size={10} style={{ color: 'var(--text-muted)' }} />
+          <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
             {p.endsAt ? `Expires ${fmtDate(p.endsAt)}` : 'No expiry'}
           </span>
         </div>
         <button
           onClick={() => onToggle(p)}
           className="flex items-center gap-1"
-          style={{ fontSize: 10, color: p.isActive ? '#16A660' : '#D84040' }}
+          style={{ fontSize: 10, color: p.isActive ? 'var(--success)' : 'var(--danger)' }}
           title={p.isActive ? 'Deactivate' : 'Activate'}
         >
           {p.isActive
-            ? <ToggleRight size={16} style={{ color: '#16A660' }} />
-            : <ToggleLeft  size={16} style={{ color: '#D84040' }} />}
+            ? <ToggleRight size={16} style={{ color: 'var(--success)' }} />
+            : <ToggleLeft  size={16} style={{ color: 'var(--danger)' }} />}
           <span>{p.isActive ? 'Active' : 'Inactive'}</span>
         </button>
       </div>
@@ -220,24 +221,24 @@ function PromoModal({
 
   const inputStyle = {
     width: '100%', padding: '7px 10px', fontSize: 12, borderRadius: 10,
-    border: '1.5px solid #E8E6F8', background: '#F6F5FF', color: '#1A1730', outline: 'none',
+    border: '1px solid var(--border)', background: 'var(--bg-subtle)', color: 'var(--text-primary)', outline: 'none',
   };
-  const labelStyle = { fontSize: 10, fontWeight: 600, color: '#4A4770', marginBottom: 4, display: 'block' as const };
+  const labelStyle = { fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4, display: 'block' as const };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(26,23,48,0.35)' }}>
-      <div className="rounded-card w-full flex flex-col" style={{ maxWidth: 520, maxHeight: '90vh', background: '#fff', boxShadow: '0 8px 40px rgba(91,79,233,0.18)' }}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.4)' }}>
+      <div className="rounded-card w-full flex flex-col" style={{ maxWidth: 520, maxHeight: '90vh', background: 'var(--bg-card)', boxShadow: 'var(--shadow-lg)' }}>
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: '#E8E6F8' }}>
+        <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
           <div className="flex items-center gap-2">
-            <div className="rounded-lg flex items-center justify-center" style={{ width: 30, height: 30, background: '#EEF0FF' }}>
-              <Tag size={14} style={{ color: '#5B4FE9' }} />
+            <div className="rounded-lg flex items-center justify-center" style={{ width: 30, height: 30, background: 'var(--brand-muted)' }}>
+              <Tag size={14} style={{ color: 'var(--brand)' }} />
             </div>
-            <span className="font-extrabold" style={{ fontSize: 14, color: '#1A1730' }}>
+            <span className="font-extrabold" style={{ fontSize: 14, color: 'var(--text-primary)' }}>
               {mode.type === 'create' ? 'Create promotion' : `Edit · ${editing?.code}`}
             </span>
           </div>
-          <button onClick={onClose}><X size={15} style={{ color: '#8A88A8' }} /></button>
+          <button onClick={onClose}><X size={15} style={{ color: 'var(--text-muted)' }} /></button>
         </div>
 
         {/* Form */}
@@ -246,7 +247,7 @@ function PromoModal({
             <div>
               <label style={labelStyle}>Branch ID *</label>
               <input style={inputStyle} placeholder="branch_xxxxx" value={branchId} onChange={e => setBranchId(e.target.value)} />
-              <div style={{ fontSize: 9, color: '#8A88A8', marginTop: 3 }}>Find the branch ID from Merchants page</div>
+              <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 3 }}>Find the branch ID from Merchants page</div>
             </div>
           )}
 
@@ -307,32 +308,32 @@ function PromoModal({
 
           {/* Active toggle */}
           <div className="flex items-center justify-between rounded-lg px-3 py-2.5"
-            style={{ background: '#F6F5FF', border: '1px solid #E8E6F8' }}>
-            <span style={{ fontSize: 12, color: '#4A4770', fontWeight: 600 }}>Active</span>
+            style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)' }}>
+            <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>Active</span>
             <button type="button" onClick={() => setIsActive(v => !v)}>
               {isActive
-                ? <ToggleRight size={22} style={{ color: '#16A660' }} />
-                : <ToggleLeft  size={22} style={{ color: '#D84040' }} />}
+                ? <ToggleRight size={22} style={{ color: 'var(--success)' }} />
+                : <ToggleLeft  size={22} style={{ color: 'var(--danger)' }} />}
             </button>
           </div>
 
           {err && (
-            <div className="rounded-lg px-3 py-2" style={{ background: '#FFF0F0', border: '1px solid #FFD0D0', fontSize: 11, color: '#D84040' }}>
+            <div className="rounded-lg px-3 py-2" style={{ background: 'var(--danger-bg)', border: '1px solid var(--danger)', fontSize: 11, color: 'var(--danger)' }}>
               {err}
             </div>
           )}
         </form>
 
         {/* Footer */}
-        <div className="flex gap-2 px-5 py-4 border-t" style={{ borderColor: '#E8E6F8' }}>
+        <div className="flex gap-2 px-5 py-4 border-t" style={{ borderColor: 'var(--border)' }}>
           <button type="button" onClick={onClose} className="flex-1 rounded-card py-2 font-semibold"
-            style={{ fontSize: 12, border: '1px solid #E8E6F8', color: '#4A4770', background: '#F6F5FF' }}>
+            style={{ fontSize: 12, border: '1px solid var(--border)', color: 'var(--text-secondary)', background: 'var(--bg-subtle)' }}>
             Cancel
           </button>
           <button onClick={handleSubmit as unknown as React.MouseEventHandler}
             disabled={saving}
             className="flex-1 rounded-card py-2 font-bold flex items-center justify-center gap-2"
-            style={{ fontSize: 12, background: '#5B4FE9', color: '#fff', opacity: saving ? 0.7 : 1 }}>
+            style={{ fontSize: 12, background: 'var(--brand)', color: '#fff', opacity: saving ? 0.7 : 1 }}>
             {saving ? <Spinner size={14} /> : (mode.type === 'create' ? 'Create promotion' : 'Save changes')}
           </button>
         </div>
@@ -350,6 +351,8 @@ export default function PromotionsPage() {
   const [filter, setFilter]         = useState('all');
   const [search, setSearch]         = useState('');
   const [modal, setModal]           = useState<ModalMode | null>(null);
+  const [page, setPage]         = useState(1);
+  const [pageSize, setPageSize] = useState(20);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -405,6 +408,13 @@ export default function PromotionsPage() {
     return true;
   });
 
+  const total      = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const safePage   = Math.min(page, totalPages);
+  const from       = total === 0 ? 0 : (safePage - 1) * pageSize + 1;
+  const to         = Math.min(safePage * pageSize, total);
+  const pageRows   = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
+
   // Performance table: top promos by usage count (active only)
   const topPromos = [...promotions]
     .filter(p => p.usageCount > 0)
@@ -412,26 +422,29 @@ export default function PromotionsPage() {
     .slice(0, 8);
   const maxUsage = topPromos[0]?.usageCount ?? 1;
 
+  const CHIP_STYLES = [
+    { val: 'all',       label: 'All',       color: 'var(--brand)',   bg: 'var(--brand-muted)',  count: counts.all },
+    { val: 'ACTIVE',    label: 'Active',    color: 'var(--success)', bg: 'var(--success-bg)',   count: counts.ACTIVE },
+    { val: 'EXPIRED',   label: 'Expired',   color: 'var(--text-muted)', bg: 'var(--bg-subtle)', count: counts.EXPIRED },
+    { val: 'SCHEDULED', label: 'Scheduled', color: 'var(--brand)',   bg: 'var(--brand-muted)',  count: counts.SCHEDULED },
+    { val: 'INACTIVE',  label: 'Inactive',  color: 'var(--danger)',  bg: 'var(--danger-bg)',    count: counts.INACTIVE },
+  ];
+
   return (
     <div className="space-y-3">
       {/* Header row */}
       <div className="flex items-center justify-between gap-3">
         {/* Filter chips */}
         <div className="flex gap-2 flex-wrap">
-          {[
-            { label: 'All',       val: 'all',       count: counts.all,       color: '#5B4FE9', bg: '#EEF0FF' },
-            { label: 'Active',    val: 'ACTIVE',    count: counts.ACTIVE,    color: '#16A660', bg: '#E8FAF2' },
-            { label: 'Expired',   val: 'EXPIRED',   count: counts.EXPIRED,   color: '#8A88A8', bg: '#F6F5FF' },
-            { label: 'Scheduled', val: 'SCHEDULED', count: counts.SCHEDULED, color: '#5B4FE9', bg: '#EEF0FF' },
-            { label: 'Inactive',  val: 'INACTIVE',  count: counts.INACTIVE,  color: '#D84040', bg: '#FFF0F0' },
-          ].map(c => (
-            <button key={c.val} onClick={() => setFilter(c.val)}
+          {CHIP_STYLES.map(c => (
+            <button key={c.val} onClick={() => { setFilter(c.val); setPage(1); }}
               className="rounded-pill px-3 py-1 font-bold"
               style={{
                 fontSize: 11,
                 background: filter === c.val ? c.color : c.bg,
                 color: filter === c.val ? '#fff' : c.color,
-                border: `1px solid ${c.color}30`,
+                border: `1px solid ${c.color}`,
+                opacity: filter === c.val ? 1 : 0.85,
               }}>
               {c.label} <span className="ml-1">{loading ? '…' : c.count}</span>
             </button>
@@ -441,21 +454,21 @@ export default function PromotionsPage() {
         <div className="flex items-center gap-2">
           {/* Search */}
           <div className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5"
-            style={{ background: '#fff', border: '1px solid #E8E6F8' }}>
-            <Search size={11} style={{ color: '#8A88A8' }} />
+            style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+            <Search size={11} style={{ color: 'var(--text-muted)' }} />
             <input
               placeholder="Search code or merchant…"
               className="bg-transparent outline-none"
-              style={{ fontSize: 11, width: 160 }}
+              style={{ fontSize: 11, width: 160, color: 'var(--text-primary)' }}
               value={search}
-              onChange={e => setSearch(e.target.value)}
+              onChange={e => { setSearch(e.target.value); setPage(1); }}
             />
           </div>
           {/* Create button */}
           <button
             onClick={() => setModal({ type: 'create' })}
             className="flex items-center gap-1.5 rounded-lg px-3 py-2 font-bold"
-            style={{ fontSize: 12, background: '#5B4FE9', color: '#fff' }}>
+            style={{ fontSize: 12, background: 'var(--brand)', color: '#fff' }}>
             <Plus size={13} /> Create promo
           </button>
         </div>
@@ -465,22 +478,22 @@ export default function PromotionsPage() {
       {loading && <div className="flex justify-center py-12"><Spinner /></div>}
 
       {!loading && error && (
-        <div className="rounded-card px-4 py-3 text-center" style={{ background: '#FFF0F0', border: '1px solid #FFD0D0' }}>
-          <div style={{ fontSize: 12, color: '#D84040' }}>{error}</div>
-          <button onClick={load} className="mt-2 font-semibold" style={{ fontSize: 11, color: '#5B4FE9' }}>Retry</button>
+        <div className="rounded-card px-4 py-3 text-center" style={{ background: 'var(--danger-bg)', border: '1px solid var(--danger)' }}>
+          <div style={{ fontSize: 12, color: 'var(--danger)' }}>{error}</div>
+          <button onClick={load} className="mt-2 font-semibold" style={{ fontSize: 11, color: 'var(--brand)' }}>Retry</button>
         </div>
       )}
 
       {!loading && !error && filtered.length === 0 && (
-        <div className="rounded-card px-4 py-12 text-center" style={{ background: '#fff', border: '1px solid #E8E6F8' }}>
-          <Tag size={28} style={{ color: '#C8C4F8', margin: '0 auto 8px' }} />
-          <div style={{ fontSize: 13, color: '#8A88A8' }}>
+        <div className="rounded-card px-4 py-12 text-center" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+          <Tag size={28} style={{ color: 'var(--brand-border)', margin: '0 auto 8px' }} />
+          <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
             {promotions.length === 0 ? 'No promotions yet. Create the first one.' : 'No promotions match this filter.'}
           </div>
           {promotions.length === 0 && (
             <button onClick={() => setModal({ type: 'create' })}
               className="mt-3 inline-flex items-center gap-1.5 rounded-lg px-4 py-2 font-bold"
-              style={{ fontSize: 12, background: '#5B4FE9', color: '#fff' }}>
+              style={{ fontSize: 12, background: 'var(--brand)', color: '#fff' }}>
               <Plus size={13} /> Create promotion
             </button>
           )}
@@ -489,33 +502,41 @@ export default function PromotionsPage() {
 
       {/* Cards grid */}
       {!loading && !error && filtered.length > 0 && (
-        <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
-          {filtered.map(({ p }, i) => (
-            <PromoCard
-              key={p.promotionId}
-              p={p}
-              idx={i}
-              onToggle={handleToggle}
-              onEdit={p => setModal({ type: 'edit', promo: p })}
-            />
-          ))}
+        <div className="rounded-card overflow-hidden" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+          <div className="grid gap-3 p-3" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+            {pageRows.map(({ p }, i) => (
+              <PromoCard
+                key={p.promotionId}
+                p={p}
+                idx={i}
+                onToggle={handleToggle}
+                onEdit={p => setModal({ type: 'edit', promo: p })}
+              />
+            ))}
+          </div>
+          <PaginationBar
+            page={safePage} totalPages={totalPages} total={total}
+            pageSize={pageSize} from={from} to={to}
+            onPage={setPage}
+            onPageSize={(v) => { setPageSize(v); setPage(1); }}
+          />
         </div>
       )}
 
       {/* Performance table */}
       {!loading && topPromos.length > 0 && (
-        <div className="rounded-card overflow-hidden" style={{ background: '#fff', border: '1px solid #E8E6F8' }}>
-          <div className="px-4 py-3 flex items-center gap-2" style={{ borderBottom: '1px solid #E8E6F8' }}>
-            <TrendingUp size={13} style={{ color: '#5B4FE9' }} />
-            <span className="font-bold" style={{ fontSize: 13, color: '#1A1730' }}>Promo performance</span>
-            <span style={{ fontSize: 10, color: '#8A88A8', marginLeft: 4 }}>by redemptions</span>
+        <div className="rounded-card overflow-hidden" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+          <div className="px-4 py-3 flex items-center gap-2" style={{ borderBottom: '1px solid var(--border)' }}>
+            <TrendingUp size={13} style={{ color: 'var(--brand)' }} />
+            <span className="font-bold" style={{ fontSize: 13, color: 'var(--text-primary)' }}>Promo performance</span>
+            <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 4 }}>by redemptions</span>
           </div>
           <table className="w-full">
             <thead>
-              <tr style={{ background: '#F6F5FF' }}>
+              <tr style={{ background: 'var(--bg-subtle)' }}>
                 {['Code', 'Merchant', 'Discount', 'Redemptions', 'Usage bar', 'Expires'].map(h => (
                   <th key={h} className="px-4 py-2.5 text-left font-semibold uppercase tracking-wider"
-                    style={{ fontSize: 9, color: '#8A88A8' }}>{h}</th>
+                    style={{ fontSize: 9, color: 'var(--text-muted)' }}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -525,35 +546,35 @@ export default function PromotionsPage() {
                 const status = deriveStatus(p);
                 const ss = STATUS_STYLE[status];
                 return (
-                  <tr key={p.promotionId} style={{ borderTop: '1px solid #E8E6F8', background: i % 2 === 1 ? '#FAFAFA' : '#fff' }}>
+                  <tr key={p.promotionId} style={{ borderTop: '1px solid var(--border)', background: i % 2 === 1 ? 'var(--bg-subtle)' : 'var(--bg-card)' }}>
                     <td className="px-4 py-2.5">
                       <div className="flex items-center gap-2">
-                        <code className="font-mono font-bold" style={{ fontSize: 11, color: '#5B4FE9' }}>{p.code}</code>
+                        <code className="font-mono font-bold" style={{ fontSize: 11, color: 'var(--brand)' }}>{p.code}</code>
                         <span className="rounded-pill px-1.5 py-0.5 font-semibold"
                           style={{ fontSize: 8, background: ss.bg, color: ss.color }}>{ss.label}</span>
                       </div>
                     </td>
-                    <td className="px-4 py-2.5" style={{ fontSize: 11, color: '#4A4770' }}>
+                    <td className="px-4 py-2.5" style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
                       {p.merchantName ?? '—'}
                     </td>
-                    <td className="px-4 py-2.5 font-semibold" style={{ fontSize: 11, color: '#5B4FE9' }}>
+                    <td className="px-4 py-2.5 font-semibold" style={{ fontSize: 11, color: 'var(--brand)' }}>
                       {fmtDiscount(p)}
                     </td>
                     <td className="px-4 py-2.5">
                       <div className="flex items-center gap-2">
-                        <Users size={11} style={{ color: '#8A88A8' }} />
-                        <span className="font-bold" style={{ fontSize: 11 }}>{p.usageCount.toLocaleString()}</span>
+                        <Users size={11} style={{ color: 'var(--text-muted)' }} />
+                        <span className="font-bold" style={{ fontSize: 11, color: 'var(--text-primary)' }}>{p.usageCount.toLocaleString()}</span>
                       </div>
                     </td>
                     <td className="px-4 py-2.5" style={{ width: 120 }}>
                       <div className="flex items-center gap-2">
-                        <div className="rounded-full overflow-hidden flex-1" style={{ height: 5, background: '#F6F5FF' }}>
-                          <div className="rounded-full h-full" style={{ width: `${barW}%`, background: '#5B4FE9' }} />
+                        <div className="rounded-full overflow-hidden flex-1" style={{ height: 5, background: 'var(--bg-subtle)' }}>
+                          <div className="rounded-full h-full" style={{ width: `${barW}%`, background: 'var(--brand)' }} />
                         </div>
-                        <span style={{ fontSize: 10, color: '#5B4FE9', fontWeight: 600, minWidth: 28 }}>{barW}%</span>
+                        <span style={{ fontSize: 10, color: 'var(--brand)', fontWeight: 600, minWidth: 28 }}>{barW}%</span>
                       </div>
                     </td>
-                    <td className="px-4 py-2.5" style={{ fontSize: 10, color: '#8A88A8' }}>
+                    <td className="px-4 py-2.5" style={{ fontSize: 10, color: 'var(--text-muted)' }}>
                       {fmtDate(p.endsAt)}
                     </td>
                   </tr>

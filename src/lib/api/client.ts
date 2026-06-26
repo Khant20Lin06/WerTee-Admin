@@ -15,13 +15,15 @@ export function setToken(token: string): void {
   if (typeof window === 'undefined') return;
   localStorage.setItem(TOKEN_KEY, token);
   const maxAge = 60 * 60 * 24 * 7;
-  document.cookie = `${COOKIE_NAME}=1; path=/; max-age=${maxAge}; SameSite=Lax`;
+  const secure = location.protocol === 'https:' ? '; Secure' : '';
+  document.cookie = `${COOKIE_NAME}=1; path=/; max-age=${maxAge}; SameSite=Strict${secure}`;
 }
 
 export function clearToken(): void {
   if (typeof window === 'undefined') return;
   localStorage.removeItem(TOKEN_KEY);
-  document.cookie = `${COOKIE_NAME}=; path=/; max-age=0`;
+  const secure = location.protocol === 'https:' ? '; Secure' : '';
+  document.cookie = `${COOKIE_NAME}=; path=/; max-age=0; SameSite=Strict${secure}`;
 }
 
 // ── Error type ────────────────────────────────────────────────────────────────
@@ -77,11 +79,17 @@ export async function apiClient<T>(
 
   if (!res.ok) {
     let code = 'UNKNOWN_ERROR';
-    let message = `HTTP ${res.status}`;
+    let message = 'Something went wrong. Please try again.';
     try {
-      const body = (await res.json()) as { code?: string; message?: string };
-      if (body.code) code = body.code;
-      if (body.message) message = body.message;
+      const body = (await res.json()) as { error?: { code?: string; message?: string }; code?: string; message?: string };
+      // Support both { error: { code, message } } and flat { code, message } envelopes
+      const rawCode    = body.error?.code    ?? body.code;
+      const rawMessage = body.error?.message ?? body.message;
+      if (rawCode) code = rawCode;
+      // Only surface safe, user-facing messages — never raw DB or stack errors
+      if (rawMessage && rawMessage.length < 200 && !rawMessage.includes('stack') && !rawMessage.includes('prisma')) {
+        message = rawMessage;
+      }
     } catch (_) { /* keep defaults */ }
     throw new ApiError(res.status, code, message);
   }
@@ -113,6 +121,13 @@ export function apiPost<T>(path: string, body?: unknown, headers?: Record<string
 export function apiPatch<T>(path: string, body?: unknown): Promise<T> {
   return apiClient<T>(path, {
     method: 'PATCH',
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+}
+
+export function apiPut<T>(path: string, body?: unknown): Promise<T> {
+  return apiClient<T>(path, {
+    method: 'PUT',
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
 }

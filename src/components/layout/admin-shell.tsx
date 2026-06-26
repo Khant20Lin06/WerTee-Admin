@@ -3,7 +3,10 @@
 import { ReactNode, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
+import { ThemeProvider } from '@/lib/context/theme-context';
 import { SidebarCountsProvider } from '@/lib/context/sidebar-counts-context';
+import { GlobalSearchProvider } from '@/lib/context/global-search-context';
+import { GlobalSearchOverlay } from './global-search-overlay';
 
 import { SidebarNav } from './sidebar-nav';
 import { Topbar } from './topbar';
@@ -14,17 +17,20 @@ export function AdminShell({ children }: Readonly<{ children: ReactNode }>) {
   const TRANS = 'width 0.22s cubic-bezier(0.4,0,0.2,1)';
 
   return (
+    <ThemeProvider>
     <SidebarCountsProvider>
-      <div className="flex h-screen overflow-hidden" style={{ background: '#F0EFFB' }}>
+    <GlobalSearchProvider>
+      <GlobalSearchOverlay />
+      <div className="flex h-screen overflow-hidden" style={{ background: 'var(--bg-page)' }}>
 
-        {/* Sidebar wrapper — controls width, toggle button lives here so it never clips */}
+        {/* Sidebar wrapper */}
         <div
           className="relative flex-shrink-0 h-full"
           style={{ width: W, minWidth: W, transition: TRANS }}
         >
           <SidebarNav collapsed={collapsed} />
 
-          {/* Toggle button — on the right edge of the wrapper, always visible */}
+          {/* Collapse toggle */}
           <button
             onClick={() => setCollapsed(c => !c)}
             className="absolute flex items-center justify-center rounded-full"
@@ -33,11 +39,11 @@ export function AdminShell({ children }: Readonly<{ children: ReactNode }>) {
               right: -11,
               width: 22,
               height: 22,
-              background: '#fff',
-              border: '1px solid #E8E6F8',
-              boxShadow: '0 1px 6px rgba(91,79,233,0.13)',
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border)',
+              boxShadow: 'var(--shadow-card)',
               zIndex: 20,
-              color: '#5B4FE9',
+              color: 'var(--brand)',
               cursor: 'pointer',
             }}
             title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
@@ -56,6 +62,8 @@ export function AdminShell({ children }: Readonly<{ children: ReactNode }>) {
         </div>
 
       </div>
+    </GlobalSearchProvider>
     </SidebarCountsProvider>
+    </ThemeProvider>
   );
 }

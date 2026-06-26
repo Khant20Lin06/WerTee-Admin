@@ -59,6 +59,12 @@ export const ep = {
   inventoryAlertsBulkAcknowledge: '/admin/inventory-alerts/bulk-acknowledge',
   inventoryAlertsBulkDismiss:   '/admin/inventory-alerts/bulk-dismiss',
 
+  // Ratings
+  ratingsStats:      '/admin/ratings/stats',
+  ratingsList:       '/admin/ratings',
+  ratingsTopBranches: '/admin/ratings/top-branches',
+  ratingsTopRiders:   '/admin/ratings/top-riders',
+
   // Auth
   login:  '/auth/login',
   me:     '/auth/me',
