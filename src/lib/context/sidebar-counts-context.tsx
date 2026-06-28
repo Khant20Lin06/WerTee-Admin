@@ -1,9 +1,10 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
 
 import { apiGet } from '@/lib/api/client';
 import { ep } from '@/lib/api/endpoints';
+import { useOrderSocket } from '@/hooks/use-order-socket';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -65,6 +66,19 @@ const AdminStatsContext = createContext<AdminStats>(EMPTY);
 
 export function SidebarCountsProvider({ children }: { children: ReactNode }) {
   const [stats, setStats] = useState<AdminStats>(EMPTY);
+
+  // Lightweight order-count refresh triggered by socket or 30s poll fallback
+  const refreshOrderCounts = useCallback(() => {
+    void apiGet<OrderStub[]>(ep.orders).then((data) => {
+      if (!Array.isArray(data)) return;
+      const pendingOrders   = data.filter(o => ['CONFIRMED', 'PREPARING', 'READY', 'DELIVERING'].includes(o.status)).length;
+      const completedOrders = data.filter(o => o.status === 'COMPLETED').length;
+      const cancelledOrders = data.filter(o => o.status === 'CANCELLED').length;
+      setStats(s => ({ ...s, totalOrders: data.length, pendingOrders, completedOrders, cancelledOrders }));
+    }).catch(() => { /* silent */ });
+  }, []);
+
+  useOrderSocket({ onOrderUpdate: refreshOrderCounts, pollFn: refreshOrderCounts });
 
   useEffect(() => {
     let cancelled = false;

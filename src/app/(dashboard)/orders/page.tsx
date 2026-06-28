@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Eye, X, Search, Download } from 'lucide-react';
 import { apiGet, apiPost, apiPatch } from '@/lib/api/client';
 import { ep } from '@/lib/api/endpoints';
+import { useOrderSocket } from '@/hooks/use-order-socket';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Spinner } from '@/components/ui/spinner';
 import { PaginationBar } from '@/components/ui/pagination-bar';
@@ -256,6 +257,15 @@ export default function OrdersPage() {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+
+  // Real-time: socket primary, 30s poll fallback
+  const silentLoad = useCallback(() => {
+    void apiGet<OrderSummary[]>(ep.orders)
+      .then((data) => { if (Array.isArray(data)) setAllOrders(data); })
+      .catch(() => { /* silent */ });
+  }, []);
+
+  useOrderSocket({ onOrderUpdate: silentLoad, pollFn: silentLoad });
 
   const handleStatus  = (v: string) => { setStatus(v);  setPage(1); };
   const handleSearch  = (v: string) => { setSearch(v);  setPage(1); };
