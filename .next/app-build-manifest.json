@@ -6,15 +6,10 @@
       "static/css/app/layout.css",
       "static/chunks/app/layout.js"
     ],
-    "/(auth)/layout": [
+    "/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(auth)/layout.js"
-    ],
-    "/(auth)/login/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/(auth)/login/page.js"
+      "static/chunks/app/page.js"
     ],
     "/(dashboard)/layout": [
       "static/chunks/webpack.js",
@@ -36,15 +31,25 @@
       "static/chunks/main-app.js",
       "static/chunks/app/(dashboard)/dashboard/page.js"
     ],
-    "/(dashboard)/orders/page": [
+    "/(auth)/layout": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(dashboard)/orders/page.js"
+      "static/chunks/app/(auth)/layout.js"
+    ],
+    "/(auth)/login/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(auth)/login/page.js"
     ],
     "/(dashboard)/merchants/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/(dashboard)/merchants/page.js"
+    ],
+    "/(dashboard)/orders/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(dashboard)/orders/page.js"
     ],
     "/(dashboard)/riders/page": [
       "static/chunks/webpack.js",
@@ -81,15 +86,30 @@
       "static/chunks/main-app.js",
       "static/chunks/app/(dashboard)/store-types/page.js"
     ],
+    "/(dashboard)/inventory-alerts/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(dashboard)/inventory-alerts/page.js"
+    ],
     "/(dashboard)/ratings/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/(dashboard)/ratings/page.js"
     ],
-    "/(dashboard)/inventory-alerts/page": [
+    "/(dashboard)/audit/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(dashboard)/inventory-alerts/page.js"
+      "static/chunks/app/(dashboard)/audit/page.js"
+    ],
+    "/(dashboard)/reports/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(dashboard)/reports/page.js"
+    ],
+    "/(dashboard)/settings/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(dashboard)/settings/page.js"
     ]
   }
 }

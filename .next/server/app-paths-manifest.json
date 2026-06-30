@@ -1,8 +1,8 @@
 {
-  "/(dashboard)/payments/page": "app/(dashboard)/payments/page.js",
-  "/(dashboard)/promotions/page": "app/(dashboard)/promotions/page.js",
   "/(dashboard)/inventory-alerts/page": "app/(dashboard)/inventory-alerts/page.js",
+  "/(dashboard)/audit/page": "app/(dashboard)/audit/page.js",
+  "/(dashboard)/ratings/page": "app/(dashboard)/ratings/page.js",
   "/(auth)/login/page": "app/(auth)/login/page.js",
-  "/(dashboard)/store-types/page": "app/(dashboard)/store-types/page.js",
-  "/(dashboard)/ratings/page": "app/(dashboard)/ratings/page.js"
+  "/(dashboard)/settings/page": "app/(dashboard)/settings/page.js",
+  "/(dashboard)/reports/page": "app/(dashboard)/reports/page.js"
 }
